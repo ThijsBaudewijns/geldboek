@@ -1,0 +1,10 @@
+{
+  "name": "geldboek",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Geldboek: uitgaven-app (PWA) voor een maand huiswerk",
+  "scripts": {
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "e2e": "npx playwright test"
+  }
+}

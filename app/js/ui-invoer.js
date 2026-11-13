@@ -1,7 +1,9 @@
 /*
  * Geldboek - tabblad Invoer (uitgave). U5, U6, U7, U9.
  * Het formulier is herbruikbaar: Geldboek.invoerForm.create(options) geeft een controller
- * { el, reset(), fill(entry), focusAmount(), read() } zodat fase 3 het in bewerkmodus kan tonen.
+ * { el, read(), validate(), reset(), fill(entry), focusAmount(), focusNote() }.
+ * options.idPrefix (standaard 'f-') en options.formId (standaard 'expense-form') voorkomen dubbele ids
+ * als een tweede formulier in de DOM staat (bewerkmodus in Overzicht gebruikt 'edit-' / 'edit-form').
  */
 (function (root) {
   'use strict';
@@ -79,9 +81,9 @@
     return f;
   }
 
-  function groupField(name, labelText, group) {
+  function groupField(name, labelText, group, prefix) {
     return h('div', { className: 'field', 'data-field': name }, [
-      h('span', { className: 'label', id: 'label-' + name, text: labelText }),
+      h('span', { className: 'label', id: (prefix || '') + 'label-' + name, text: labelText }),
       group.el
     ]);
   }
@@ -104,32 +106,33 @@
   }
 
   /**
-   * options: { categories: [..], submitLabel: 'Opslaan', onSubmit(entryFields) }
+   * options: { categories: [..], submitLabel: 'Opslaan', onSubmit(entryFields), idPrefix: 'f-', formId: 'expense-form' }
    * onSubmit krijgt een gevalideerd object met type 'expense' en integer amountCents.
    */
   function createForm(options) {
     var opts = options || {};
     var calc = G.calc;
     var storeApi = G.store;
+    var P = typeof opts.idPrefix === 'string' && opts.idPrefix ? opts.idPrefix : 'f-';
 
     var amount = h('input', {
-      id: 'f-amount', name: 'amount', className: 'input input-amount', type: 'text',
+      id: P + 'amount', name: 'amount', className: 'input input-amount', type: 'text',
       inputmode: 'decimal', autocomplete: 'off', enterkeyhint: 'next', placeholder: '0,00',
-      'aria-describedby': 'f-amount-error'
+      'aria-describedby': P + 'amount-error'
     });
     var amountWrap = h('div', { className: 'amount-wrap' }, [h('span', { className: 'currency', 'aria-hidden': 'true', text: '€' }), amount]);
     var what = h('input', {
-      id: 'f-what', name: 'what', className: 'input', type: 'text', autocomplete: 'off',
+      id: P + 'what', name: 'what', className: 'input', type: 'text', autocomplete: 'off',
       autocapitalize: 'sentences', enterkeyhint: 'next', placeholder: 'Bijv. Lunch', maxlength: '80',
-      'aria-describedby': 'f-what-error'
+      'aria-describedby': P + 'what-error'
     });
     var note = h('textarea', {
-      id: 'f-note', name: 'note', className: 'input', rows: '2', autocapitalize: 'sentences',
-      placeholder: 'Waarom gaf je dit uit?', 'aria-describedby': 'f-note-error'
+      id: P + 'note', name: 'note', className: 'input', rows: '2', autocapitalize: 'sentences',
+      placeholder: 'Waarom gaf je dit uit?', 'aria-describedby': P + 'note-error'
     });
     var datetime = h('input', {
-      id: 'f-datetime', name: 'datetime', className: 'input', type: 'datetime-local',
-      'aria-describedby': 'f-datetime-error'
+      id: P + 'datetime', name: 'datetime', className: 'input', type: 'datetime-local',
+      'aria-describedby': P + 'datetime-error'
     });
 
     var fixed = chipGroup({ name: 'fixed', values: storeApi.FIXED.slice(), labels: ['Vast', 'Variabel'], seg: true, value: 'variabel', ariaLabel: 'Vast of variabel' });
@@ -138,24 +141,24 @@
     var worth = chipGroup({ name: 'worth', values: [1, 2, 3, 4, 5], allowNone: true, className: 'chip chip-score', ariaLabel: 'Was het het geld waard (1 tot 5)' });
     var mood = chipGroup({ name: 'mood', values: storeApi.MOODS.slice(), allowNone: true, ariaLabel: 'Stemming' });
 
-    var fAmount = field('f-amount', 'Bedrag', amountWrap);
-    var fWhat = field('f-what', 'Wat', what);
-    var fNote = field('f-note', 'Waarom (argumentatie)', note);
-    var fDatetime = field('f-datetime', 'Datum en tijd', datetime);
-    var fFixed = groupField('fixed', 'Vast of variabel', fixed);
+    var fAmount = field(P + 'amount', 'Bedrag', amountWrap);
+    var fWhat = field(P + 'what', 'Wat', what);
+    var fNote = field(P + 'note', 'Waarom (argumentatie)', note);
+    var fDatetime = field(P + 'datetime', 'Datum en tijd', datetime);
+    var fFixed = groupField('fixed', 'Vast of variabel', fixed, P === 'f-' ? '' : P);
 
     var more = h('details', { className: 'more', open: true }, [
       h('summary', { text: 'Meer' }),
       h('div', { className: 'more-body' }, [
-        groupField('category', 'Categorie', category),
-        groupField('need', 'Nodig, wil of impuls?', need),
-        groupField('worth', 'Was het het geld waard? (1-5)', worth),
-        groupField('mood', 'Stemming', mood)
+        groupField('category', 'Categorie', category, P === 'f-' ? '' : P),
+        groupField('need', 'Nodig, wil of impuls?', need, P === 'f-' ? '' : P),
+        groupField('worth', 'Was het het geld waard? (1-5)', worth, P === 'f-' ? '' : P),
+        groupField('mood', 'Stemming', mood, P === 'f-' ? '' : P)
       ])
     ]);
 
-    var submit = h('button', { type: 'submit', className: 'btn btn-primary btn-block', id: 'f-submit', text: opts.submitLabel || 'Opslaan' });
-    var form = h('form', { className: 'form', id: 'expense-form', novalidate: true, autocomplete: 'off' }, [
+    var submit = h('button', { type: 'submit', className: 'btn btn-primary btn-block', id: P + 'submit', text: opts.submitLabel || 'Opslaan' });
+    var form = h('form', { className: 'form', id: opts.formId || 'expense-form', novalidate: true, autocomplete: 'off' }, [
       fAmount,
       fWhat,
       fNote,
@@ -273,7 +276,7 @@
     quickWrap.appendChild(list);
   }
 
-  G.invoerForm = { create: createForm, centsToInput: centsToInput };
+  G.invoerForm = { create: createForm, centsToInput: centsToInput, h: h };
 
   G.app.register('invoer', {
     init: function (el, app) {

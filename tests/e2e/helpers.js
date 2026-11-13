@@ -43,4 +43,18 @@ async function addExpense(page, { amount, what, note, fixed } = {}) {
   await page.locator('#f-submit').click();
 }
 
-module.exports = { APP_FILE_URL, APP_HTTP_URL, STORAGE_KEY, setStandalone, openApp, readData, addExpense };
+/** Tikt op een tabblad in de tabbalk en wacht tot de sectie zichtbaar is. */
+async function goTab(page, route) {
+  await page.locator(`.tab[data-route="${route}"]`).click();
+  await page.locator(`#view-${route}`).waitFor({ state: 'visible' });
+}
+
+/** Lokale datum van n dagen geleden als "YYYY-MM-DD" (voor #f-datetime). */
+function isoDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  const p = (x) => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+module.exports = { APP_FILE_URL, APP_HTTP_URL, STORAGE_KEY, setStandalone, openApp, readData, addExpense, goTab, isoDaysAgo };

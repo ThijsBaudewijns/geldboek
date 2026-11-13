@@ -114,6 +114,19 @@
       toastTimer = setTimeout(function () { t.hidden = true; }, ms || 3000);
     },
 
+    /**
+     * Ja/nee-vraag (bijv. voor verwijderen). Gebruikt de native confirm() (werkt ook in iOS standalone);
+     * zonder confirm() wordt er niet gevraagd en is het antwoord ja.
+     */
+    confirm: function (message) {
+      if (typeof root.confirm !== 'function') return true;
+      try {
+        return !!root.confirm(message);
+      } catch (err) {
+        return true;
+      }
+    },
+
     /** true als de app vanaf het beginscherm draait (U22; het installatiescherm volgt in fase 4). */
     isStandalone: function () {
       if (root.navigator && root.navigator.standalone === true) return true;

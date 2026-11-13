@@ -96,7 +96,9 @@ test.describe('Invoer uitgave', () => {
     await expect(page.locator('.tabbar .tab')).toHaveText(['Invoer', 'Overzicht', 'Terugkijken', 'Reflectie']);
     await page.locator('.tab[data-route="overzicht"]').click();
     await expect(page).toHaveURL(/#overzicht$/);
-    await expect(page.locator('#view-overzicht')).toContainText('binnenkort');
+    await expect(page.locator('#view-overzicht')).toBeVisible();
+    await page.locator('.tab[data-route="terugkijken"]').click();
+    await expect(page.locator('#view-terugkijken')).toContainText('binnenkort');
     await expect(page.locator('#view-invoer')).toBeHidden();
     await page.locator('#settings-link').click();
     await expect(page.locator('#view-instellingen')).toBeVisible();

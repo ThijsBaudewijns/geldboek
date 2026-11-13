@@ -186,3 +186,58 @@ test('createStore zonder opslag werkt in geheugen', () => {
   assert.equal(store.save(), true);
   assert.equal(store.listEntries().length, 1);
 });
+
+test('renameCategory: hernoemt in de lijst en past bestaande uitgaven aan', () => {
+  const fs = fakeStorage();
+  const store = S.createStore(fs, { now: fixedNow });
+  store.addEntry(expense({ category: 'Uitgaan' }));
+  store.addEntry(expense({ category: 'Uitgaan', what: 'Bioscoop' }));
+  store.addEntry(expense({ category: 'Vervoer' }));
+  store.addEntry({ type: 'income', amountCents: 500, source: 'werk' });
+  const changed = store.renameCategory('Uitgaan', 'Stappen');
+  assert.equal(changed, 2);
+  const s = store.getSettings();
+  assert.equal(s.categories[S.DEFAULT_CATEGORIES.indexOf('Uitgaan')], 'Stappen');
+  assert.equal(s.categories.indexOf('Uitgaan'), -1);
+  const cats = store.listEntries().filter((e) => e.type === 'expense').map((e) => e.category).sort();
+  assert.deepEqual(cats, ['Stappen', 'Stappen', 'Vervoer']);
+  // Weggeschreven naar de opslag.
+  const saved = JSON.parse(fs.map['geldboek.v1']);
+  assert.equal(saved.entries.filter((e) => e.category === 'Stappen').length, 2);
+});
+
+test('renameCategory: naar een bestaande naam voegt samen; lege of onbekende naam gooit', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  store.addEntry(expense({ category: 'Uitgaan' }));
+  assert.equal(store.renameCategory('Uitgaan', ' overig '), 1);
+  const s = store.getSettings();
+  assert.equal(s.categories.indexOf('Uitgaan'), -1);
+  assert.equal(s.categories.filter((c) => c === 'Overig').length, 1);
+  assert.equal(store.listEntries()[0].category, 'Overig');
+  assert.throws(() => store.renameCategory('Vervoer', '  '), /naam/);
+  assert.throws(() => store.renameCategory('Bestaat niet', 'X'), /bestaat niet/);
+  // Zelfde naam: niets verandert.
+  assert.equal(store.renameCategory('Vervoer', 'Vervoer'), 0);
+});
+
+test('addCategory en removeCategory', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  store.addEntry(expense({ category: 'Kleding' }));
+  store.addCategory('  Sport ');
+  assert.equal(store.getSettings().categories.slice(-1)[0], 'Sport');
+  assert.throws(() => store.addCategory('sport'), /bestaat al/);
+  assert.throws(() => store.addCategory(''), /naam/);
+  assert.equal(store.removeCategory('Kleding'), true);
+  assert.equal(store.removeCategory('Kleding'), false);
+  assert.equal(store.getSettings().categories.indexOf('Kleding'), -1);
+  // Bestaande uitgave houdt haar categorie.
+  assert.equal(store.listEntries()[0].category, 'Kleding');
+});
+
+test('updateSettings: negatief startsaldo en onboarded blijven bewaard', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const s = store.updateSettings({ startBalanceCents: -2550, hourlyWageCents: 1500, onboarded: true, startDate: '2026-11-13' });
+  assert.equal(s.startBalanceCents, -2550);
+  assert.equal(s.hourlyWageCents, 1500);
+  assert.equal(s.onboarded, true);
+});

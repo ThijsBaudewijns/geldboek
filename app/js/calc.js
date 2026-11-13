@@ -131,6 +131,46 @@
     return result;
   }
 
+  /**
+   * Als parseAmount, maar 0 en negatief mogen ook (voor het startsaldo).
+   * "-25,50" / "−25,50" -> -2550; "0" / "0,00" -> 0; leeg of ongeldig -> null.
+   */
+  function parseSignedAmount(input) {
+    if (typeof input === 'number') {
+      if (!isFinite(input)) return null;
+      var n = Math.round(input * 100);
+      return n === 0 ? 0 : n;
+    }
+    if (typeof input !== 'string') return null;
+    var s = input.replace(/[\s  €]/g, '').replace(/^eur/i, '');
+    var sign = 1;
+    var m = /^([-−+]?)(.*)$/.exec(s);
+    if (m[1] === '-' || m[1] === '−') sign = -1;
+    s = m[2];
+    if (s === '') return null;
+    if (/^0*([.,]0{0,2})?$/.test(s) && /0/.test(s)) return 0;
+    var c = parseAmount(s);
+    if (c === null) return null;
+    return sign * c;
+  }
+
+  /** Aantal uren als tekst ("4", "6,5", "1.25") -> getal > 0 (max. 2 decimalen), anders null. */
+  function parseHours(input) {
+    if (typeof input === 'number') return isFinite(input) && input > 0 ? input : null;
+    if (typeof input !== 'string') return null;
+    var s = input.replace(/\s/g, '').replace(',', '.');
+    if (!/^\d+(\.\d{1,2})?$/.test(s) && !/^\.\d{1,2}$/.test(s)) return null;
+    var h = parseFloat(s);
+    return isFinite(h) && h > 0 ? h : null;
+  }
+
+  /** U10: uren x uurloon in gehele centen (afgerond). Zonder geldige uren of uurloon -> null. */
+  function wageAmount(hours, hourlyWageCents) {
+    if (typeof hours !== 'number' || !isFinite(hours) || hours <= 0) return null;
+    if (typeof hourlyWageCents !== 'number' || !isFinite(hourlyWageCents) || hourlyWageCents <= 0) return null;
+    return Math.round(hours * hourlyWageCents);
+  }
+
   function validThousands(s, sep) {
     if (s.indexOf(sep) < 0) return /^\d+$/.test(s);
     var groups = s.split(sep);
@@ -358,6 +398,9 @@
   var calc = {
     DAY_MS: DAY_MS,
     parseAmount: parseAmount,
+    parseSignedAmount: parseSignedAmount,
+    parseHours: parseHours,
+    wageAmount: wageAmount,
     formatEuro: formatEuro,
     balance: balance,
     totals: totals,

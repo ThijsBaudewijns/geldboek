@@ -54,13 +54,13 @@ test.describe('Invoer uitgave', () => {
     await addExpense(page, { amount: '12,50', what: 'Lunch', note: '' });
     await expect(page.locator('#f-note-error')).toBeVisible();
     await expect(page.locator('#f-note-error')).toContainText('minstens 3 tekens');
-    expect(await readData(page)).toBeNull();
+    expect((await readData(page)).entries).toHaveLength(0);
 
     // Te kort (2 tekens) ook geweigerd.
     await page.locator('#f-note').fill('ok');
     await page.locator('#f-submit').click();
     await expect(page.locator('#f-note-error')).toBeVisible();
-    expect(await readData(page)).toBeNull();
+    expect((await readData(page)).entries).toHaveLength(0);
   });
 
   test('ongeldig of leeg bedrag geeft een Nederlandse foutmelding', async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe('Invoer uitgave', () => {
     await page.locator('#f-amount').fill('abc');
     await page.locator('#f-submit').click();
     await expect(page.locator('#f-amount-error')).toContainText('geen geldig bedrag');
-    expect(await readData(page)).toBeNull();
+    expect((await readData(page)).entries).toHaveLength(0);
   });
 
   test('na een opgeslagen "Lunch" verschijnt een snelle chip "Lunch" die het formulier vult', async ({ page }) => {

@@ -5,7 +5,8 @@
  *   Geldboek.overzicht.renderRow(entry, ctx) -> <button class="entry-row">  (ctx: { settings })
  *   Geldboek.overzicht.rowLabels.push(function (entry, ctx) { return [{ text, className }] | null; })
  *     voegt extra kleine labels toe aan elke regel (bijv. "voorgeschoten", "≈ 1,5 uur werk").
- * De bewerkmodus hergebruikt Geldboek.invoerForm.create met idPrefix 'edit-' / formId 'edit-form'.
+ * De bewerkmodus hergebruikt Geldboek.invoerForm.create (uitgave) of .createIncome (inkomst)
+ * met idPrefix 'edit-' / formId 'edit-form'.
  * Het bewerkformulier staat alleen in de DOM zolang het open is.
  */
 (function (root) {
@@ -196,8 +197,7 @@
     closeEdit(null);
     editingId = id;
 
-    editForm = G.invoerForm.create({
-      categories: app.store.getSettings().categories,
+    var formOpts = {
       submitLabel: 'Opslaan',
       idPrefix: 'edit-',
       formId: 'edit-form',
@@ -217,7 +217,14 @@
         closeEdit(app);
         root.scrollTo(0, 0);
       }
-    });
+    };
+    if (entry.type === 'income') {
+      formOpts.getHourlyWageCents = function () { return app.store.getSettings().hourlyWageCents; };
+      editForm = G.invoerForm.createIncome(formOpts);
+    } else {
+      formOpts.categories = app.store.getSettings().categories;
+      editForm = G.invoerForm.create(formOpts);
+    }
     editForm.fill(entry);
 
     var back = h('button', { type: 'button', className: 'btn btn-link', id: 'edit-back', text: '‹ Terug' });

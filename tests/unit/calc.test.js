@@ -217,3 +217,35 @@ test('quickPicks: alleen uitgaven uit de laatste 30 dagen, niet in de toekomst',
   assert.deepEqual(calc.quickPicks(entries, now).map(x => x.what), ['Grens']);
   assert.deepEqual(calc.quickPicks([], now), []);
 });
+
+test('parseSignedAmount: 0 en negatief toegestaan (startsaldo)', () => {
+  assert.equal(calc.parseSignedAmount('0'), 0);
+  assert.equal(calc.parseSignedAmount('0,00'), 0);
+  assert.equal(calc.parseSignedAmount('-0'), 0);
+  assert.equal(calc.parseSignedAmount('100'), 10000);
+  assert.equal(calc.parseSignedAmount('-25,50'), -2550);
+  assert.equal(calc.parseSignedAmount('−25,50'), -2550); // echt minteken
+  assert.equal(calc.parseSignedAmount('€ -1.250,00'), -125000);
+  assert.equal(calc.parseSignedAmount('+3.5'), 350);
+  assert.equal(calc.parseSignedAmount(-12.5), -1250);
+});
+
+test('parseSignedAmount: leeg en onzin geweigerd', () => {
+  for (const v of ['', '   ', '-', 'abc', '12,345', '--3', null, undefined, NaN]) {
+    assert.equal(calc.parseSignedAmount(v), null, String(v));
+  }
+});
+
+test('parseHours: komma en punt, max. 2 decimalen, > 0', () => {
+  assert.equal(calc.parseHours('4'), 4);
+  assert.equal(calc.parseHours('6,5'), 6.5);
+  assert.equal(calc.parseHours('1.25'), 1.25);
+  for (const v of ['', '0', '-1', 'abc', '1,234', null]) assert.equal(calc.parseHours(v), null, String(v));
+});
+
+test('wageAmount: uren x uurloon in centen; zonder uurloon null', () => {
+  assert.equal(calc.wageAmount(4, 1500), 6000);
+  assert.equal(calc.wageAmount(1.5, 1333), 2000); // 1999,5 -> afgerond
+  assert.equal(calc.wageAmount(4, null), null);
+  assert.equal(calc.wageAmount(0, 1500), null);
+});

@@ -221,6 +221,64 @@
       return clone(data.settings);
     };
 
+    // ---- categorieën (Instellingen) ----
+
+    function findCategory(list, name) {
+      var key = String(name).trim().toLowerCase();
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].trim().toLowerCase() === key) return i;
+      }
+      return -1;
+    }
+
+    /** Voegt een categorie toe (achteraan). Gooit bij een lege naam of een bestaande naam (hoofdletterongevoelig). */
+    store.addCategory = function (name) {
+      var n = typeof name === 'string' ? name.trim() : '';
+      if (!n) throw new Error('Vul een naam in.');
+      if (findCategory(data.settings.categories, n) >= 0) throw new Error('Die categorie bestaat al.');
+      data.settings.categories.push(n);
+      store.save();
+      return clone(data.settings);
+    };
+
+    /**
+     * Hernoemt een categorie en past alle uitgaven met die categorie aan.
+     * Bestaat de nieuwe naam al (andere categorie), dan worden ze samengevoegd.
+     * Geeft het aantal aangepaste entries. Gooit bij een lege nieuwe naam of een onbekende oude naam.
+     */
+    store.renameCategory = function (oldName, newName) {
+      var n = typeof newName === 'string' ? newName.trim() : '';
+      if (!n) throw new Error('Vul een naam in.');
+      var cats = data.settings.categories;
+      var idx = cats.indexOf(oldName);
+      if (idx < 0) throw new Error('Categorie "' + oldName + '" bestaat niet.');
+      var other = findCategory(cats, n);
+      if (other >= 0 && other !== idx) {
+        n = cats[other];
+        cats.splice(idx, 1);
+      } else {
+        cats[idx] = n;
+      }
+      var changed = 0;
+      data.entries.forEach(function (e) {
+        if (e.type === 'expense' && e.category === oldName && oldName !== n) {
+          e.category = n;
+          changed++;
+        }
+      });
+      store.save();
+      return changed;
+    };
+
+    /** Haalt een categorie uit de lijst. Bestaande uitgaven houden hun categorie (geschiedenis). true als hij bestond. */
+    store.removeCategory = function (name) {
+      var idx = data.settings.categories.indexOf(name);
+      if (idx < 0) return false;
+      data.settings.categories.splice(idx, 1);
+      store.save();
+      return true;
+    };
+
     /**
      * Voegt een entry toe. id en createdAt worden gezet als ze ontbreken.
      * Gooit een Error bij een ongeldig type of een bedrag dat geen positief geheel getal is.

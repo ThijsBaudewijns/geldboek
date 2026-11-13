@@ -4,6 +4,9 @@
  * { el, read(), validate(), reset(), fill(entry), focusAmount(), focusNote() }.
  * options.idPrefix (standaard 'f-') en options.formId (standaard 'expense-form') voorkomen dubbele ids
  * als een tweede formulier in de DOM staat (bewerkmodus in Overzicht gebruikt 'edit-' / 'edit-form').
+ * Inkomsten (U10): Geldboek.invoerForm.createIncome(options) met dezelfde controller-vorm;
+ * standaard idPrefix 'i-' en formId 'income-form'. Bovenaan het tabblad een schakelaar
+ * Uitgave | Inkomst (data-group="entry-type", data-value "expense" / "income").
  */
 (function (root) {
   'use strict';
@@ -250,10 +253,198 @@
     return ctrl;
   }
 
+  var SOURCE_LABELS = { werk: 'Werk', terugbetaling: 'Terugbetaling', belasting: 'Belasting', overig: 'Overig' };
+
+  /** Uren als invoertekst: 6.5 -> "6,5". */
+  function hoursToInput(hours) {
+    return typeof hours === 'number' && isFinite(hours) ? String(hours).replace('.', ',') : '';
+  }
+
+  /**
+   * Bedragveld dat ook 0 en negatief accepteert (startsaldo), met een ±-knop omdat het
+   * decimale iOS-toetsenbord geen minteken heeft. Geeft { el, input, field }.
+   * opts: { id, label, large (groot bedragveld), placeholder }
+   */
+  function signedAmountField(opts) {
+    var input = h('input', {
+      id: opts.id, name: opts.id, className: 'input' + (opts.large ? ' input-amount' : ' input-money'), type: 'text',
+      inputmode: 'decimal', autocomplete: 'off', placeholder: opts.placeholder || '0,00',
+      'aria-describedby': opts.id + '-error'
+    });
+    var sign = h('button', { type: 'button', className: 'sign-btn', id: opts.id + '-sign', 'aria-label': 'Wissel tussen plus en min', text: '±' });
+    var wrap = h('div', { className: 'amount-wrap signed' + (opts.large ? '' : ' amount-wrap-small') }, [
+      h('span', { className: 'currency', 'aria-hidden': 'true', text: '€' }), input, sign
+    ]);
+    var f = field(opts.id, opts.label, wrap);
+    sign.addEventListener('click', function () {
+      var v = input.value.replace(/^\s+/, '');
+      if (/^[-−]/.test(v)) input.value = v.replace(/^[-−]\s*/, '');
+      else input.value = '-' + v;
+      setError(f, null);
+      input.focus();
+    });
+    input.addEventListener('input', function () { setError(f, null); });
+    return { el: f, input: input, field: f, setError: function (msg) { setError(f, msg); } };
+  }
+
+  /**
+   * Inkomstformulier (U10): bedrag, bron-chips, uren (alleen bij werk; met uurloon vult
+   * uren x uurloon het bedrag voor, overschrijfbaar), omschrijving (optioneel, in `note`), datum/tijd.
+   * options: { idPrefix: 'i-', formId: 'income-form', submitLabel, getHourlyWageCents(), onSubmit(fields) }
+   * onSubmit krijgt { type: 'income', amountCents, source, hours, note, what, datetime }.
+   * `what` = de omschrijving, of anders de bron ("Werk").
+   */
+  function createIncomeForm(options) {
+    var opts = options || {};
+    var calc = G.calc;
+    var storeApi = G.store;
+    var P = typeof opts.idPrefix === 'string' && opts.idPrefix ? opts.idPrefix : 'i-';
+    var getWage = typeof opts.getHourlyWageCents === 'function' ? opts.getHourlyWageCents : function () { return null; };
+
+    var amount = h('input', {
+      id: P + 'amount', name: 'amount', className: 'input input-amount', type: 'text',
+      inputmode: 'decimal', autocomplete: 'off', enterkeyhint: 'next', placeholder: '0,00',
+      'aria-describedby': P + 'amount-error'
+    });
+    var amountWrap = h('div', { className: 'amount-wrap' }, [h('span', { className: 'currency', 'aria-hidden': 'true', text: '€' }), amount]);
+    var hours = h('input', {
+      id: P + 'hours', name: 'hours', className: 'input', type: 'text', inputmode: 'decimal',
+      autocomplete: 'off', placeholder: 'Bijv. 4', 'aria-describedby': P + 'hours-hint ' + P + 'hours-error'
+    });
+    var note = h('textarea', {
+      id: P + 'note', name: 'note', className: 'input', rows: '2', autocapitalize: 'sentences',
+      placeholder: 'Bijv. loon november', maxlength: '200', 'aria-describedby': P + 'note-error'
+    });
+    var datetime = h('input', {
+      id: P + 'datetime', name: 'datetime', className: 'input', type: 'datetime-local',
+      'aria-describedby': P + 'datetime-error'
+    });
+    var source = chipGroup({
+      name: 'source', values: storeApi.SOURCES.slice(),
+      labels: storeApi.SOURCES.map(function (s) { return SOURCE_LABELS[s] || s; }),
+      value: 'werk', ariaLabel: 'Bron', onChange: function () { syncHours(); }
+    });
+
+    var hint = h('p', { className: 'hint', id: P + 'hours-hint' });
+    var fAmount = field(P + 'amount', 'Bedrag', amountWrap);
+    var fHours = field(P + 'hours', 'Uren gewerkt (optioneel)', hours);
+    fHours.insertBefore(hint, fHours._error);
+    var fNote = field(P + 'note', 'Omschrijving (optioneel)', note);
+    var fDatetime = field(P + 'datetime', 'Datum en tijd', datetime);
+    var fSource = groupField('source', 'Bron', source, P);
+
+    var submit = h('button', { type: 'submit', className: 'btn btn-primary btn-block', id: P + 'submit', text: opts.submitLabel || 'Opslaan' });
+    var form = h('form', { className: 'form', id: opts.formId || 'income-form', novalidate: true, autocomplete: 'off' }, [
+      fAmount,
+      fSource,
+      fHours,
+      fNote,
+      fDatetime,
+      h('div', { className: 'save-bar' }, [submit])
+    ]);
+
+    function syncHours() {
+      fHours.hidden = source.get() !== 'werk';
+      var wage = getWage();
+      hint.textContent = wage
+        ? 'Met je uurloon (' + calc.formatEuro(wage) + ') vult Geldboek het bedrag voor.'
+        : 'Stel een uurloon in bij Instellingen, dan rekent Geldboek het bedrag uit.';
+    }
+
+    hours.addEventListener('input', function () {
+      setError(fHours, null);
+      var c = calc.wageAmount(calc.parseHours(hours.value), getWage());
+      if (c !== null) {
+        amount.value = centsToInput(c);
+        setError(fAmount, null);
+      }
+    });
+    [[amount, fAmount], [note, fNote], [datetime, fDatetime]].forEach(function (pair) {
+      pair[0].addEventListener('input', function () { setError(pair[1], null); });
+    });
+
+    function validate() {
+      var errors = [];
+      var cents = calc.parseAmount(amount.value);
+      if (amount.value.trim() === '') errors.push([fAmount, 'Vul een bedrag in, bijvoorbeeld 12,50.', amount]);
+      else if (cents === null) errors.push([fAmount, 'Dit is geen geldig bedrag. Gebruik bijvoorbeeld 12,50.', amount]);
+      if (source.get() === 'werk' && hours.value.trim() !== '' && calc.parseHours(hours.value) === null) {
+        errors.push([fHours, 'Vul het aantal uren in als getal, bijvoorbeeld 4 of 6,5.', hours]);
+      }
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(datetime.value)) errors.push([fDatetime, 'Kies een datum en tijd.', datetime]);
+      [fAmount, fHours, fNote, fDatetime].forEach(function (f) { setError(f, null); });
+      errors.forEach(function (e) { setError(e[0], e[1]); });
+      return { ok: errors.length === 0, cents: cents, first: errors.length ? errors[0][2] : null };
+    }
+
+    function read() {
+      var src = source.get() || 'overig';
+      var n = note.value.trim();
+      return {
+        type: 'income',
+        amountCents: calc.parseAmount(amount.value),
+        source: src,
+        hours: src === 'werk' ? calc.parseHours(hours.value) : null,
+        note: n,
+        what: n || SOURCE_LABELS[src] || src,
+        datetime: datetime.value.slice(0, 16)
+      };
+    }
+
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var v = validate();
+      if (!v.ok) {
+        if (v.first) v.first.focus();
+        return;
+      }
+      if (opts.onSubmit) opts.onSubmit(read());
+    });
+
+    var ctrl = {
+      el: form,
+      read: read,
+      validate: validate,
+      focusAmount: function () {
+        try { amount.focus({ preventScroll: true }); } catch (err) { amount.focus(); }
+      },
+      focusNote: function () { note.focus(); },
+      /** Werkt de uurloon-hint bij (na wijzigen van Instellingen). */
+      refresh: syncHours,
+      reset: function () {
+        amount.value = '';
+        hours.value = '';
+        note.value = '';
+        datetime.value = calc.toLocalDateTime(new Date());
+        source.set('werk');
+        [fAmount, fHours, fNote, fDatetime].forEach(function (f) { setError(f, null); });
+        syncHours();
+      },
+      fill: function (e) {
+        if (!e) return;
+        if (typeof e.amountCents === 'number') amount.value = centsToInput(e.amountCents);
+        if (e.source) source.set(e.source);
+        if ('hours' in e) hours.value = hoursToInput(e.hours);
+        if (typeof e.note === 'string') note.value = e.note;
+        if (typeof e.datetime === 'string') datetime.value = e.datetime.slice(0, 16);
+        [fAmount, fHours, fNote, fDatetime].forEach(function (f) { setError(f, null); });
+        syncHours();
+      }
+    };
+    ctrl.reset();
+    return ctrl;
+  }
+
   // ---- Tabblad Invoer ----
 
-  var form = null;
+  var form = null;          // uitgaveformulier (#expense-form, ids f-...)
+  var incomeForm = null;    // inkomstformulier (#income-form, ids i-...)
   var quickWrap = null;
+  var expenseWrap = null;
+  var typeSwitch = null;
+  var mode = 'expense';
+  var categoriesKey = '';
+  var viewEl = null;
 
   function renderQuickPicks(app) {
     var picks = G.calc.quickPicks(app.store.listEntries(), new Date(), 6);
@@ -276,13 +467,83 @@
     quickWrap.appendChild(list);
   }
 
-  G.invoerForm = { create: createForm, centsToInput: centsToInput, h: h };
+  G.invoerForm = {
+    create: createForm,
+    createIncome: createIncomeForm,
+    signedAmountField: signedAmountField,
+    centsToInput: centsToInput,
+    hoursToInput: hoursToInput,
+    SOURCE_LABELS: SOURCE_LABELS,
+    h: h
+  };
+
+  function afterSave(app, saved) {
+    if (app.store.lastError) {
+      app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
+    } else {
+      app.toast('Opgeslagen: ' + G.calc.formatEuro(saved.amountCents) + ' — ' + saved.what);
+    }
+  }
+
+  function makeExpenseForm(app) {
+    var cats = app.store.getSettings().categories;
+    categoriesKey = JSON.stringify(cats);
+    return createForm({
+      categories: cats,
+      onSubmit: function (fields) {
+        var saved;
+        try {
+          saved = app.store.addEntry(fields);
+        } catch (err) {
+          app.toast('Opslaan mislukt: ' + err.message, 5000);
+          return;
+        }
+        afterSave(app, saved);
+        form.reset();
+        renderQuickPicks(app);
+        root.scrollTo(0, 0);
+        form.focusAmount();
+      }
+    });
+  }
+
+  function setTitle() {
+    var text = mode === 'income' ? 'Nieuwe inkomst' : 'Nieuwe uitgave';
+    var t = document.getElementById('view-title');
+    if (t) t.textContent = text;
+    if (viewEl) viewEl.setAttribute('data-title', text);
+  }
+
+  function setMode(m) {
+    mode = m === 'income' ? 'income' : 'expense';
+    typeSwitch.set(mode);
+    expenseWrap.hidden = mode !== 'expense';
+    incomeForm.el.hidden = mode !== 'income';
+    setTitle();
+    if (mode === 'income') {
+      incomeForm.refresh();
+      incomeForm.focusAmount();
+    } else {
+      form.focusAmount();
+    }
+  }
 
   G.app.register('invoer', {
     init: function (el, app) {
+      viewEl = el;
+      typeSwitch = chipGroup({
+        name: 'entry-type', values: ['expense', 'income'], labels: ['Uitgave', 'Inkomst'], seg: true,
+        value: 'expense', ariaLabel: 'Uitgave of inkomst', onChange: function (v) { setMode(v); }
+      });
+      typeSwitch.el.className = 'seg type-switch';
+      typeSwitch.el.id = 'entry-type';
+
       quickWrap = h('div', { className: 'quick', id: 'quick-picks' });
-      form = createForm({
-        categories: app.store.getSettings().categories,
+      form = makeExpenseForm(app);
+      expenseWrap = h('div', { className: 'expense-wrap', id: 'expense-wrap' }, [quickWrap, form.el]);
+
+      incomeForm = createIncomeForm({
+        getHourlyWageCents: function () { return app.store.getSettings().hourlyWageCents; },
         onSubmit: function (fields) {
           var saved;
           try {
@@ -291,23 +552,27 @@
             app.toast('Opslaan mislukt: ' + err.message, 5000);
             return;
           }
-          if (app.store.lastError) {
-            app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
-          } else {
-            app.toast('Opgeslagen: ' + G.calc.formatEuro(saved.amountCents) + ' — ' + saved.what);
-          }
-          form.reset();
-          renderQuickPicks(app);
+          afterSave(app, saved);
+          incomeForm.reset();
           root.scrollTo(0, 0);
-          form.focusAmount();
+          incomeForm.focusAmount();
         }
       });
-      el.appendChild(quickWrap);
-      el.appendChild(form.el);
+      incomeForm.el.hidden = true;
+
+      el.appendChild(typeSwitch.el);
+      el.appendChild(expenseWrap);
+      el.appendChild(incomeForm.el);
     },
     show: function (el, app) {
+      // Categorieën gewijzigd in Instellingen? Dan het uitgaveformulier opnieuw opbouwen.
+      if (JSON.stringify(app.store.getSettings().categories) !== categoriesKey) {
+        var fresh = makeExpenseForm(app);
+        expenseWrap.replaceChild(fresh.el, form.el);
+        form = fresh;
+      }
       renderQuickPicks(app);
-      form.focusAmount();
+      setMode(mode);
     }
   });
 })(window);

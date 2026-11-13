@@ -11,6 +11,11 @@
   var DEFAULT_ROUTE = 'invoer';
 
   var views = {};      // route -> { init, show, hide, initialized }
+  var gates = {};      // 'install' | 'welcome' -> { show(el, app) }
+  var gate = null;     // actief scherm vóór de app (installatie of eerste keer), anders null
+  var BROWSER_KEY = 'geldboek.browser';
+  var GATE_IDS = { install: 'install-screen', welcome: 'welcome-screen' };
+  var GATE_TITLES = { install: 'Geldboek installeren', welcome: 'Welkom bij Geldboek' };
   var current = null;
   var toastTimer = null;
   var started = false;
@@ -57,6 +62,7 @@
     current: function () { return current; },
 
     render: function (route) {
+      if (gate) { app.showGate(gate); return; }
       var prev = current;
       if (prev && prev !== route && views[prev] && typeof views[prev].def.hide === 'function') {
         views[prev].def.hide(sectionFor(prev), app);
@@ -127,7 +133,7 @@
       }
     },
 
-    /** true als de app vanaf het beginscherm draait (U22; het installatiescherm volgt in fase 4). */
+    /** true als de app vanaf het beginscherm draait (U22). */
     isStandalone: function () {
       if (root.navigator && root.navigator.standalone === true) return true;
       try {
@@ -137,12 +143,85 @@
       }
     },
 
+    /**
+     * Scherm vóór de app (U22). def: { show(el, app) }. name: 'install' of 'welcome'.
+     * De secties #install-screen en #welcome-screen staan in index.html.
+     */
+    registerGate: function (name, def) {
+      if (!GATE_IDS[name]) throw new Error('Onbekend scherm: ' + name);
+      gates[name] = def || {};
+      if (started && gate === name) app.showGate(name);
+    },
+
+    /** Welk scherm moet vóór de app komen? 'install', 'welcome' of null (direct de app). */
+    gateFor: function () {
+      if (app.store.getSettings().onboarded) return null;
+      if (app.isStandalone() || app.browserChosen()) return 'welcome';
+      return 'install';
+    },
+
+    /** true als in deze sessie gekozen is voor "Toch in de browser gebruiken". */
+    browserChosen: function () {
+      try {
+        return !!(root.sessionStorage && root.sessionStorage.getItem(BROWSER_KEY) === '1');
+      } catch (err) {
+        return false;
+      }
+    },
+
+    /** "Toch in de browser gebruiken": onthoud dat (deze sessie) en ga door naar het eerste-keer-scherm. */
+    chooseBrowser: function () {
+      try {
+        if (root.sessionStorage) root.sessionStorage.setItem(BROWSER_KEY, '1');
+      } catch (err) { /* privémodus e.d.: dan alleen voor nu */ }
+      app.showGate('welcome');
+    },
+
+    /** Toont een scherm vóór de app; tabbalk en tandwiel zijn dan verborgen. */
+    showGate: function (name) {
+      if (current && views[current] && typeof views[current].def.hide === 'function') {
+        views[current].def.hide(sectionFor(current), app);
+      }
+      current = null;
+      gate = name;
+      document.body.classList.add('gated');
+      document.body.setAttribute('data-gate', name);
+      ROUTES.forEach(function (r) {
+        var el = sectionFor(r);
+        if (el) el.hidden = true;
+      });
+      Object.keys(GATE_IDS).forEach(function (k) {
+        var g = document.getElementById(GATE_IDS[k]);
+        if (g) g.hidden = k !== name;
+      });
+      var title = document.getElementById('view-title');
+      if (title) title.textContent = GATE_TITLES[name];
+      var el = document.getElementById(GATE_IDS[name]);
+      if (gates[name] && typeof gates[name].show === 'function') gates[name].show(el, app);
+    },
+
+    /** Klaar met het eerste-keer-scherm: naar de gewone app (Invoer). */
+    finishGate: function () {
+      gate = null;
+      document.body.classList.remove('gated');
+      document.body.removeAttribute('data-gate');
+      Object.keys(GATE_IDS).forEach(function (k) {
+        var g = document.getElementById(GATE_IDS[k]);
+        if (g) { g.hidden = true; g.innerHTML = ''; }
+      });
+      app.go(DEFAULT_ROUTE);
+    },
+
+    gate: function () { return gate; },
+
     start: function () {
       if (started) return;
       started = true;
       app.store = G.store.createStore(safeLocalStorage());
       root.addEventListener('hashchange', function () { app.render(routeFromHash()); });
-      app.render(routeFromHash());
+      var g = app.gateFor();
+      if (g) app.showGate(g);
+      else app.render(routeFromHash());
     }
   };
 

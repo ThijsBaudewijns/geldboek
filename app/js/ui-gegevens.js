@@ -209,10 +209,11 @@
     var now = new Date();
     if (!B.reminderDue(s, entries, now)) return;
     var days = B.daysSinceExport(s, entries, now);
+    // Kort en op één regel, zodat het formulier eronder (t/m "Vast of variabel") zo min mogelijk zakt.
     var text = s.lastExportAt
-      ? 'Je laatste back-up is ' + days + ' dagen oud.'
-      : 'Je hebt nog geen back-up gemaakt.';
-    var now2 = h('button', { type: 'button', className: 'btn btn-primary btn-small', id: 'backup-reminder-now', text: 'Nu back-up maken' });
+      ? 'Back-up is ' + days + ' dagen oud.'
+      : 'Nog geen back-up gemaakt.';
+    var now2 = h('button', { type: 'button', className: 'btn btn-primary btn-small', id: 'backup-reminder-now', text: 'Back-up maken' });
     var close = h('button', { type: 'button', className: 'reminder-close', id: 'backup-reminder-close', 'aria-label': 'Herinnering wegklikken', text: '×' });
     var bar = h('div', { className: 'reminder', id: 'backup-reminder', role: 'status' }, [
       h('p', { className: 'reminder-text', text: text }),

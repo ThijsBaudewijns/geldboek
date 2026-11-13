@@ -609,28 +609,27 @@ body.gated .main { padding-bottom: calc(24px + var(--safe-bottom)); }
 #backup-status { color: var(--text); }
 #backup-file { font-size: 16px; } /* verborgen, maar wel >= 16px (U25) */
 
-/* Back-upherinnering bovenaan Invoer (U18) */
+/* Back-upherinnering bovenaan Invoer (U18): compact, één regel, zodat het formulier niet achter de Opslaan-balk zakt */
 .reminder {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 2px 0 10px;
-  padding: 8px 4px 8px 12px;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 3px 0 3px 10px;
   background: var(--accent-soft);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
 }
-.reminder-text { flex: 1; min-width: 0; margin: 0; font-size: 15px; line-height: 1.3; }
-.reminder .btn-small { min-height: 36px; padding: 0 10px; }
+.reminder-text { flex: 1; min-width: 0; margin: 0; font-size: 14px; line-height: 1.25; }
+.reminder .btn-small { flex: 0 0 auto; min-height: 32px; padding: 0 10px; font-size: 15px; }
 .reminder-close {
   flex: 0 0 auto;
-  width: var(--tap);
-  height: var(--tap);
-  margin: -4px 0;
+  width: 40px;
+  height: 36px;
   border: 0;
   background: transparent;
   color: var(--text-muted);
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
 }

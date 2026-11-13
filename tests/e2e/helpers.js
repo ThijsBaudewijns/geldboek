@@ -103,12 +103,49 @@ async function goTab(page, route) {
   await page.locator(`#view-${route}`).waitFor({ state: 'visible' });
 }
 
-/** Lokale datum van n dagen geleden als "YYYY-MM-DD" (voor #f-datetime). */
-function isoDaysAgo(n) {
-  const d = new Date();
+/**
+ * Lokale datum van n dagen geleden als "YYYY-MM-DD" (voor #f-datetime).
+ * base (optioneel): rekenen vanaf deze Date i.p.v. nu (bijv. SHOT_NOW bij een vaste klok).
+ */
+function isoDaysAgo(n, base) {
+  const d = base ? new Date(base.getTime()) : new Date();
   d.setDate(d.getDate() - n);
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-module.exports = { APP_FILE_URL, APP_HTTP_URL, STORAGE_KEY, setStandalone, seedData, openApp, readData, addExpense, addIncome, setEntryType, goTab, isoDaysAgo };
+/**
+ * Vaste klok voor screenshot-tests (vrijdag 13 november 2026, 20:00 lokaal), zodat de PNG's
+ * niet van de datum afhangen en `git status` schoon blijft na een volledige e2e-run.
+ */
+const SHOT_NOW = new Date(2026, 10, 13, 20, 0);
+
+/** Zet de klok van de pagina vast op SHOT_NOW (vóór openApp aanroepen). */
+async function fixShotClock(page) {
+  await page.clock.setFixedTime(SHOT_NOW);
+}
+
+/** Geen Web Share (zoals op de pc): dan moet de app downloaden via <a download>. */
+async function stubNoShare(page) {
+  await page.addInitScript(() => {
+    for (const k of ['share', 'canShare']) {
+      try { Object.defineProperty(Navigator.prototype, k, { value: undefined, configurable: true, writable: true }); } catch (e) { /* negeren */ }
+      try { Object.defineProperty(navigator, k, { value: undefined, configurable: true, writable: true }); } catch (e) { /* negeren */ }
+    }
+  });
+}
+
+/** Verzamelt console-fouten en paginafouten; geeft de (levende) lijst terug. */
+function collectErrors(page) {
+  const errors = [];
+  page.on('console', (msg) => { if (msg.type() === 'error') errors.push('console: ' + msg.text()); });
+  page.on('pageerror', (err) => errors.push('pageerror: ' + err.message));
+  return errors;
+}
+
+/** Breedte van het document t.o.v. het venster (voor de check op horizontale scroll). */
+async function scrollWidths(page) {
+  return page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
+}
+
+module.exports = { SHOT_NOW, fixShotClock, stubNoShare, collectErrors, scrollWidths, APP_FILE_URL, APP_HTTP_URL, STORAGE_KEY, setStandalone, seedData, openApp, readData, addExpense, addIncome, setEntryType, goTab, isoDaysAgo };

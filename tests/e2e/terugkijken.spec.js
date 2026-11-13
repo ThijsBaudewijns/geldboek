@@ -1,7 +1,7 @@
 // Fase 6: terugkijken na een week (U13) en uren-werk (U14).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData, addExpense, goTab, isoDaysAgo } = require('./helpers');
+const { openApp, readData, addExpense, goTab, isoDaysAgo, SHOT_NOW, fixShotClock } = require('./helpers');
 
 function exp(id, amountCents, what, daysAgo, extra) {
   return Object.assign({
@@ -157,16 +157,17 @@ test.describe('Uren-werk', () => {
 test('screenshot terugkijken (390x844)', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
   await page.setViewportSize({ width: 390, height: 844 });
+  await fixShotClock(page);
   await openApp(page, {
     hash: 'terugkijken',
-    settings: { hourlyWageCents: 1500, startBalanceCents: 25000, startDate: isoDaysAgo(30) },
+    settings: { hourlyWageCents: 1500, startBalanceCents: 25000, startDate: isoDaysAgo(30, SHOT_NOW) },
     entries: [
       exp('e_a', 7999, 'Nieuwe koptelefoon', 11, {
         note: 'Mijn oude was kapot en ik luister elke dag muziek in de trein.', worth: 4,
-        category: 'Overig', need: 'wil', datetime: isoDaysAgo(11) + 'T16:45'
+        category: 'Overig', need: 'wil', datetime: isoDaysAgo(11, SHOT_NOW) + 'T16:45'
       }),
-      exp('e_b', 1250, 'Lunch', 8, { note: 'Geen tijd om brood te smeren', worth: 2 }),
-      exp('e_c', 3000, 'Bioscoop', 10, { note: 'Met vrienden', worth: 5 })
+      exp('e_b', 1250, 'Lunch', 8, { note: 'Geen tijd om brood te smeren', worth: 2, datetime: isoDaysAgo(8, SHOT_NOW) + 'T12:00' }),
+      exp('e_c', 3000, 'Bioscoop', 10, { note: 'Met vrienden', worth: 5, datetime: isoDaysAgo(10, SHOT_NOW) + 'T12:00' })
     ]
   });
   await expect(page.locator('#review-card')).toHaveAttribute('data-entry-id', 'e_a');

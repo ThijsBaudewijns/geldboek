@@ -1,7 +1,7 @@
 // Overzicht: saldo, lijst per dag, bewerken en verwijderen (fase 3).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData, addExpense, goTab, isoDaysAgo } = require('./helpers');
+const { openApp, readData, addExpense, goTab, isoDaysAgo, SHOT_NOW, fixShotClock } = require('./helpers');
 
 const MINUS = '−';
 
@@ -128,17 +128,18 @@ test.describe('Overzicht', () => {
   test('screenshot overzicht (390x844)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
     await page.setViewportSize({ width: 390, height: 844 });
+    await fixShotClock(page);
     await openApp(page);
     // Startdatum gisteren, zodat de entries van gisteren in het saldo meetellen (U11).
-    await page.evaluate((d) => window.Geldboek.app.store.updateSettings({ startDate: d }), isoDaysAgo(1));
+    await page.evaluate((d) => window.Geldboek.app.store.updateSettings({ startDate: d }), isoDaysAgo(1, SHOT_NOW));
     const add = async (o) => {
       if (o.category) await page.locator(`[data-group="category"] [data-value="${o.category}"]`).click();
       if (o.need) await page.locator(`[data-group="need"] [data-value="${o.need}"]`).click();
       if (o.datetime) await page.locator('#f-datetime').fill(o.datetime);
       await addExpense(page, o);
     };
-    await add({ amount: '42,10', what: 'Boodschappen AH', note: 'Weekboodschappen', category: 'Boodschappen', need: 'nodig', datetime: isoDaysAgo(1) + 'T17:40' });
-    await add({ amount: '9,99', what: 'Spotify', note: 'Elke maand', category: 'Abonnementen', fixed: 'vast', datetime: isoDaysAgo(1) + 'T08:00' });
+    await add({ amount: '42,10', what: 'Boodschappen AH', note: 'Weekboodschappen', category: 'Boodschappen', need: 'nodig', datetime: isoDaysAgo(1, SHOT_NOW) + 'T17:40' });
+    await add({ amount: '9,99', what: 'Spotify', note: 'Elke maand', category: 'Abonnementen', fixed: 'vast', datetime: isoDaysAgo(1, SHOT_NOW) + 'T08:00' });
     await add({ amount: '12,50', what: 'Lunch', note: 'Geen brood meegenomen', category: 'Eten & drinken buiten de deur', need: 'wil' });
     await add({ amount: '3,40', what: 'Koffie', note: 'Lange dag', category: 'Eten & drinken buiten de deur', need: 'impuls' });
     await goTab(page, 'overzicht');

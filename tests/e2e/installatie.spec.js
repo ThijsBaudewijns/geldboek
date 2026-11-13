@@ -1,7 +1,7 @@
 // Installatiescherm (U22) en eerste-keer-scherm (fase 4).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData } = require('./helpers');
+const { openApp, readData, fixShotClock } = require('./helpers');
 
 test.describe('Installatiescherm', () => {
   test('zonder standalone -> installatiescherm met 3 stappen, zonder tabbalk', async ({ page }) => {
@@ -96,6 +96,7 @@ test.describe('Eerste-keer-scherm', () => {
   test('screenshots installatie en onboarding (390x844)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
     await page.setViewportSize({ width: 390, height: 844 });
+    await fixShotClock(page);
     await openApp(page, { standalone: false, onboarded: false });
     await expect(page.locator('#install-screen')).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 0));

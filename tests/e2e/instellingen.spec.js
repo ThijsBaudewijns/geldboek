@@ -1,7 +1,7 @@
 // Instellingen, startsaldo en inkomsten (fase 4).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData, addExpense, addIncome, setEntryType, goTab, isoDaysAgo } = require('./helpers');
+const { openApp, readData, addExpense, addIncome, setEntryType, goTab, isoDaysAgo, fixShotClock } = require('./helpers');
 
 test.describe('Onboarding, uitgave en inkomst', () => {
   test('startsaldo 100 -> uitgave 20 -> inkomst werk 4 uur x 15 -> saldo € 140,00', async ({ page }) => {
@@ -101,6 +101,7 @@ test.describe('Inkomstformulier', () => {
   test('screenshot inkomst (390x844)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
     await page.setViewportSize({ width: 390, height: 844 });
+    await fixShotClock(page);
     await openApp(page, { settings: { hourlyWageCents: 1500, startBalanceCents: 10000 } });
     await setEntryType(page, 'income');
     await page.locator('#i-hours').fill('4');

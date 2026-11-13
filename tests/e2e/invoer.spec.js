@@ -1,7 +1,7 @@
 // Invoerscherm uitgave (fase 2).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData, addExpense } = require('./helpers');
+const { openApp, readData, addExpense, fixShotClock } = require('./helpers');
 
 test.describe('Invoer uitgave', () => {
   test('uitgave met "12,50" wordt opgeslagen als 1250 centen', async ({ page }) => {
@@ -149,6 +149,7 @@ test.describe('iOS-basis', () => {
   test('screenshot invoer (390x844)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
     await page.setViewportSize({ width: 390, height: 844 });
+    await fixShotClock(page);
     await openApp(page);
     await addExpense(page, { amount: '12,50', what: 'Lunch', note: 'Geen brood meegenomen' });
     await addExpense(page, { amount: '3,40', what: 'Koffie', note: 'Lange dag' });

@@ -1,7 +1,7 @@
 // Fase 5: voorgeschoten en terugbetaald (U12).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData, addExpense, goTab, isoDaysAgo } = require('./helpers');
+const { openApp, readData, addExpense, goTab, isoDaysAgo, SHOT_NOW, fixShotClock } = require('./helpers');
 
 function advance(id, amountCents, what, name, extra) {
   return Object.assign({
@@ -173,16 +173,17 @@ test.describe('Voorgeschoten en terugbetaald', () => {
   test('screenshot openstaand (390x844)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
     await page.setViewportSize({ width: 390, height: 844 });
+    await fixShotClock(page);
     await openApp(page, {
       hash: 'overzicht',
-      settings: { startBalanceCents: 25000, startDate: isoDaysAgo(30) },
+      settings: { startBalanceCents: 25000, startDate: isoDaysAgo(30, SHOT_NOW) },
       entries: [
-        advance('e_a', 3000, 'Bioscoopkaartjes', 'Sam', { datetime: isoDaysAgo(2) + 'T20:15', category: 'Uitgaan' }),
-        advance('e_b', 1250, 'Lunch', 'Sam', { datetime: isoDaysAgo(0) + 'T12:30', category: 'Eten & drinken buiten de deur' }),
-        advance('e_c', 860, 'Boodschappen', 'Anna', { datetime: isoDaysAgo(1) + 'T17:40', category: 'Boodschappen' }),
-        advance('e_d', 450, 'Koffie', 'Anna', { datetime: isoDaysAgo(1) + 'T09:10', repaidAt: '2026-11-12T10:00:00.000Z', category: 'Eten & drinken buiten de deur' }),
-        { id: 'e_e', type: 'income', amountCents: 450, source: 'terugbetaling', what: 'Terugbetaald door Anna', note: '', datetime: isoDaysAgo(0) + 'T08:00', linkedExpenseId: 'e_d' },
-        { id: 'e_f', type: 'expense', amountCents: 340, what: 'Koffie', note: 'Lange dag', datetime: isoDaysAgo(0) + 'T10:05', need: 'impuls', category: 'Eten & drinken buiten de deur' }
+        advance('e_a', 3000, 'Bioscoopkaartjes', 'Sam', { datetime: isoDaysAgo(2, SHOT_NOW) + 'T20:15', category: 'Uitgaan' }),
+        advance('e_b', 1250, 'Lunch', 'Sam', { datetime: isoDaysAgo(0, SHOT_NOW) + 'T12:30', category: 'Eten & drinken buiten de deur' }),
+        advance('e_c', 860, 'Boodschappen', 'Anna', { datetime: isoDaysAgo(1, SHOT_NOW) + 'T17:40', category: 'Boodschappen' }),
+        advance('e_d', 450, 'Koffie', 'Anna', { datetime: isoDaysAgo(1, SHOT_NOW) + 'T09:10', repaidAt: '2026-11-12T10:00:00.000Z', category: 'Eten & drinken buiten de deur' }),
+        { id: 'e_e', type: 'income', amountCents: 450, source: 'terugbetaling', what: 'Terugbetaald door Anna', note: '', datetime: isoDaysAgo(0, SHOT_NOW) + 'T08:00', linkedExpenseId: 'e_d' },
+        { id: 'e_f', type: 'expense', amountCents: 340, what: 'Koffie', note: 'Lange dag', datetime: isoDaysAgo(0, SHOT_NOW) + 'T10:05', need: 'impuls', category: 'Eten & drinken buiten de deur' }
       ]
     });
     await expect(page.locator('#openstaand .open-item')).toHaveCount(3);

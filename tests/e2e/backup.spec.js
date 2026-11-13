@@ -3,21 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { openApp, readData, goTab, STORAGE_KEY } = require('./helpers');
+const { openApp, readData, goTab, stubNoShare, STORAGE_KEY } = require('./helpers');
 const fixture = require('./fixtures/maand.json');
 
 const NOW = new Date(2026, 10, 1, 20, 0); // zondag 1 november 2026, 20:00 lokaal (zoals reflectie.spec.js)
 const BALANCE = 14311; // € 143,11 met de fixture
-
-/** Geen Web Share (zoals op de pc): dan moet de app downloaden via <a download>. */
-async function stubNoShare(page) {
-  await page.addInitScript(() => {
-    for (const k of ['share', 'canShare']) {
-      try { Object.defineProperty(Navigator.prototype, k, { value: undefined, configurable: true, writable: true }); } catch (e) { /* negeren */ }
-      try { Object.defineProperty(navigator, k, { value: undefined, configurable: true, writable: true }); } catch (e) { /* negeren */ }
-    }
-  });
-}
 
 /** Nep-deelmenu (zoals iOS): registreert elke aanroep met naam, type en inhoud van het bestand. */
 async function stubShare(page) {
@@ -161,12 +151,12 @@ test.describe('Back-up en terugzetten', () => {
 });
 
 test.describe('Back-upherinnering (U18)', () => {
-  test('na 7 dagen zonder back-up: balk op Invoer; "Nu back-up maken" downloadt en de balk verdwijnt', async ({ page }) => {
+  test('na 7 dagen zonder back-up: balk op Invoer; "Back-up maken" downloadt en de balk verdwijnt', async ({ page }) => {
     await stubNoShare(page);
     await openWithFixture(page);
     const bar = page.locator('#backup-reminder');
     await expect(bar).toBeVisible();
-    await expect(bar).toContainText('Je hebt nog geen back-up gemaakt.');
+    await expect(bar).toContainText('Nog geen back-up gemaakt.');
     // Bovenaan de Invoer-sectie.
     expect(await page.evaluate(() => document.getElementById('view-invoer').firstElementChild.id)).toBe('backup-reminder');
     const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#backup-reminder-now').click()]);
@@ -191,6 +181,7 @@ test.describe('Back-upherinnering (U18)', () => {
 
   test('screenshot herinnering en Gegevens (390x844)', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'screenshot alleen in het iphone-project');
+    await page.setViewportSize({ width: 390, height: 844 });
     await openWithFixture(page);
     await expect(page.locator('#backup-reminder')).toBeVisible();
     await page.screenshot({ path: path.join(__dirname, 'screens', 'herinnering.png') });
@@ -254,7 +245,7 @@ test.describe('PWA', () => {
     test.skip(!hasSW, 'Deze Playwright-browser heeft geen service workers');
     await page.evaluate(() => navigator.serviceWorker.ready);
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 10000 }).toBe(true);
-    expect(await page.evaluate(() => caches.keys())).toContain('geldboek-v1');
+    expect(await page.evaluate(() => caches.keys())).toContain('geldboek-v2');
     expect(await page.evaluate(async () => !!(await caches.match('./js/app.js')))).toBe(true);
     await context.setOffline(true);
     await page.reload();

@@ -1,0 +1,37 @@
+# Publiceert de map app/ op GitHub Pages bij elke push naar main.
+# Eenmalig instellen: Settings > Pages > Source "GitHub Actions".
+# Let op: bij elke wijziging in app/ VERSION in app/sw.js ophogen (anders blijft de oude versie hangen).
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Code ophalen
+        uses: actions/checkout@v5
+      - name: Pages instellen
+        uses: actions/configure-pages@v5
+      - name: Map app/ klaarzetten
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: app
+      - name: Publiceren
+        id: deployment
+        uses: actions/deploy-pages@v4

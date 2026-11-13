@@ -465,3 +465,20 @@ body.gated .main { padding-bottom: calc(24px + var(--safe-bottom)); }
 .cat-row .input { flex: 1; min-width: 0; }
 .btn-small { padding: 0 12px; font-size: 15px; flex: 0 0 auto; }
 .cat-add .btn { flex: 0 0 auto; }
+
+/* Voorgeschoten en terugbetaald (U12) */
+.tag-advance.is-open { background: var(--accent-soft); color: var(--accent); }
+.tag-advance.is-repaid { background: var(--surface-2); color: var(--text-muted); }
+.open-card { margin-top: 0; }
+.open-person + .open-person { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.open-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.open-name { font-weight: 650; font-size: 16px; }
+.open-total { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.open-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.open-item { display: flex; align-items: center; gap: 10px; min-height: var(--tap); padding: 4px 0; }
+.open-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.open-item-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.open-item-date { font-size: 12px; color: var(--text-muted); }
+.open-item-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.repaid-box { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.repaid-text { margin: 0; }

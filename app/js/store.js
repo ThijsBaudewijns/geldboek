@@ -311,17 +311,111 @@
       if ('type' in p && p.type !== 'expense' && p.type !== 'income') throw new Error('type moet "expense" of "income" zijn');
       var merged = Object.assign({}, data.entries[idx], p);
       data.entries[idx] = normalizeEntry(merged, nowFn());
+      // Bedrag van een terugbetaalde uitgave aangepast? Dan de gekoppelde terugbetaling meenemen (saldo blijft kloppen).
+      var upd = data.entries[idx];
+      if (upd.type === 'expense') {
+        data.entries.forEach(function (e) {
+          if (e.type === 'income' && e.linkedExpenseId === upd.id) e.amountCents = upd.amountCents;
+        });
+      }
       store.save();
       return clone(data.entries[idx]);
     };
 
-    /** Verwijdert een entry. true als hij bestond. */
-    store.deleteEntry = function (id) {
-      var before = data.entries.length;
-      data.entries = data.entries.filter(function (e) { return e.id !== id; });
-      if (data.entries.length === before) return false;
+    /**
+     * Verwijdert een entry. true als hij bestond.
+     * Koppeling voorgeschoten/terugbetaald (U12):
+     * - uitgave met gekoppelde inkomst(en): options.withLinked === true verwijdert die inkomsten ook;
+     *   anders blijven ze staan, los van de uitgave (linkedExpenseId -> null).
+     * - gekoppelde inkomst: de uitgave staat daarna weer open (repaidAt -> null).
+     */
+    store.deleteEntry = function (id, options) {
+      var o = isObj(options) ? options : {};
+      var target = null;
+      for (var i = 0; i < data.entries.length; i++) {
+        if (data.entries[i].id === id) { target = data.entries[i]; break; }
+      }
+      if (!target) return false;
+      data.entries = data.entries.filter(function (e) {
+        if (e.id === id) return false;
+        if (target.type === 'expense' && e.type === 'income' && e.linkedExpenseId === id) {
+          if (o.withLinked === true) return false;
+          e.linkedExpenseId = null;
+        }
+        return true;
+      });
+      if (target.type === 'income' && target.linkedExpenseId) {
+        data.entries.forEach(function (e) {
+          if (e.id === target.linkedExpenseId && e.type === 'expense') e.repaidAt = null;
+        });
+      }
       store.save();
       return true;
+    };
+
+    // ---- voorgeschoten en terugbetaald (U12) ----
+
+    function findIndex(id) {
+      for (var i = 0; i < data.entries.length; i++) {
+        if (data.entries[i].id === id) return i;
+      }
+      return -1;
+    }
+
+    /** De inkomst die bij een voorgeschoten uitgave hoort (kopie), of null. */
+    store.linkedIncome = function (expenseId) {
+      for (var i = 0; i < data.entries.length; i++) {
+        var e = data.entries[i];
+        if (e.type === 'income' && e.linkedExpenseId === expenseId) return clone(e);
+      }
+      return null;
+    };
+
+    /**
+     * Markeert een voorgeschoten uitgave als terugbetaald: maakt een inkomst met bron 'terugbetaling',
+     * hetzelfde bedrag en linkedExpenseId = expenseId, en zet repaidAt op de uitgave.
+     * now (optioneel, Date) = moment van terugbetalen. Geeft de nieuwe inkomst (kopie).
+     * Gooit als de uitgave niet bestaat, niet voorgeschoten is of al terugbetaald is.
+     */
+    store.markRepaid = function (expenseId, now) {
+      var idx = findIndex(expenseId);
+      var exp = idx >= 0 ? data.entries[idx] : null;
+      if (!exp || exp.type !== 'expense') throw new Error('Deze uitgave bestaat niet (meer).');
+      if (!exp.advanceFor) throw new Error('Deze uitgave is niet voorgeschoten.');
+      if (exp.repaidAt || store.linkedIncome(expenseId)) throw new Error('Deze uitgave is al terugbetaald.');
+      var d = now instanceof Date ? now : nowFn();
+      var income = normalizeEntry({
+        id: generateId(d.getTime()),
+        type: 'income',
+        amountCents: exp.amountCents,
+        source: 'terugbetaling',
+        hours: null,
+        what: 'Terugbetaald door ' + exp.advanceFor,
+        note: exp.what ? 'Voor: ' + exp.what : '',
+        datetime: todayISO(d) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()),
+        createdAt: d.toISOString(),
+        linkedExpenseId: expenseId
+      }, d);
+      while (findIndex(income.id) >= 0) income.id = generateId();
+      exp.repaidAt = d.toISOString();
+      data.entries.push(income);
+      store.save();
+      return clone(income);
+    };
+
+    /** Draait een terugbetaling terug: verwijdert de gekoppelde inkomst(en), repaidAt -> null. true als er iets veranderde. */
+    store.undoRepaid = function (expenseId) {
+      var idx = findIndex(expenseId);
+      if (idx < 0 || data.entries[idx].type !== 'expense') return false;
+      var before = data.entries.length;
+      data.entries = data.entries.filter(function (e) {
+        return !(e.type === 'income' && e.linkedExpenseId === expenseId);
+      });
+      var exp = data.entries[findIndex(expenseId)];
+      var changed = data.entries.length !== before || exp.repaidAt !== null;
+      exp.repaidAt = null;
+      if (changed) store.save();
+      return changed;
     };
 
     store.getEntry = function (id) {

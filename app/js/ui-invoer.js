@@ -109,7 +109,8 @@
   }
 
   /**
-   * options: { categories: [..], submitLabel: 'Opslaan', onSubmit(entryFields), idPrefix: 'f-', formId: 'expense-form' }
+   * options: { categories: [..], submitLabel: 'Opslaan', onSubmit(entryFields), idPrefix: 'f-', formId: 'expense-form',
+   *            getAdvanceNames() -> ['Sam', ...] (suggesties voor "Voorgeschoten voor", #<P>advance-for / #<P>advance-list) }
    * onSubmit krijgt een gevalideerd object met type 'expense' en integer amountCents.
    */
   function createForm(options) {
@@ -143,6 +144,24 @@
     var need = chipGroup({ name: 'need', values: storeApi.NEEDS.slice(), labels: ['Nodig', 'Wil', 'Impuls'], allowNone: true, ariaLabel: 'Nodig, wil of impuls' });
     var worth = chipGroup({ name: 'worth', values: [1, 2, 3, 4, 5], allowNone: true, className: 'chip chip-score', ariaLabel: 'Was het het geld waard (1 tot 5)' });
     var mood = chipGroup({ name: 'mood', values: storeApi.MOODS.slice(), allowNone: true, ariaLabel: 'Stemming' });
+    // Voorgeschoten voor (U12): naam met suggesties van eerder gebruikte namen (opts.getAdvanceNames()).
+    var advanceList = h('datalist', { id: P + 'advance-list' });
+    var advance = h('input', {
+      id: P + 'advance-for', name: 'advanceFor', className: 'input', type: 'text', autocomplete: 'off',
+      autocapitalize: 'words', enterkeyhint: 'done', placeholder: 'Naam (leeg = voor mezelf)', maxlength: '40',
+      list: P + 'advance-list', 'aria-describedby': P + 'advance-hint'
+    });
+    function refreshAdvanceNames() {
+      var names = [];
+      try { names = typeof opts.getAdvanceNames === 'function' ? (opts.getAdvanceNames() || []) : []; } catch (err) { names = []; }
+      advanceList.innerHTML = '';
+      names.forEach(function (n) { advanceList.appendChild(h('option', { value: n })); });
+    }
+    advance.addEventListener('focus', refreshAdvanceNames);
+    refreshAdvanceNames();
+    var fAdvance = field(P + 'advance-for', 'Voorgeschoten voor', advance);
+    fAdvance.insertBefore(h('p', { className: 'hint', id: P + 'advance-hint', text: 'Betaalde je dit voor iemand anders? Dan telt het niet als eigen uitgave.' }), fAdvance._error);
+    fAdvance.appendChild(advanceList);
 
     var fAmount = field(P + 'amount', 'Bedrag', amountWrap);
     var fWhat = field(P + 'what', 'Wat', what);
@@ -156,7 +175,8 @@
         groupField('category', 'Categorie', category, P === 'f-' ? '' : P),
         groupField('need', 'Nodig, wil of impuls?', need, P === 'f-' ? '' : P),
         groupField('worth', 'Was het het geld waard? (1-5)', worth, P === 'f-' ? '' : P),
-        groupField('mood', 'Stemming', mood, P === 'f-' ? '' : P)
+        groupField('mood', 'Stemming', mood, P === 'f-' ? '' : P),
+        fAdvance
       ])
     ]);
 
@@ -200,7 +220,8 @@
         category: category.get(),
         need: need.get(),
         worth: worth.get(),
-        mood: mood.get()
+        mood: mood.get(),
+        advanceFor: advance.value.trim() || null
       };
     }
 
@@ -231,6 +252,8 @@
         need.set(null);
         worth.set(null);
         mood.set(null);
+        advance.value = '';
+        refreshAdvanceNames();
         [fAmount, fWhat, fNote, fDatetime].forEach(function (f) { setError(f, null); });
       },
       /** Vult (een deel van) de velden, bijv. vanuit een snelle chip of een bestaande entry. */
@@ -245,9 +268,11 @@
         if ('need' in e) need.set(e.need);
         if ('worth' in e) worth.set(e.worth);
         if ('mood' in e) mood.set(e.mood);
+        if ('advanceFor' in e) advance.value = e.advanceFor || '';
         [fAmount, fWhat, fNote, fDatetime].forEach(function (f) { setError(f, null); });
       },
-      focusNote: function () { note.focus(); }
+      focusNote: function () { note.focus(); },
+      refreshAdvanceNames: refreshAdvanceNames
     };
     ctrl.reset();
     return ctrl;
@@ -490,6 +515,7 @@
     categoriesKey = JSON.stringify(cats);
     return createForm({
       categories: cats,
+      getAdvanceNames: function () { return G.calc.advanceNames(app.store.listEntries()); },
       onSubmit: function (fields) {
         var saved;
         try {

@@ -8,6 +8,11 @@
  * De bewerkmodus hergebruikt Geldboek.invoerForm.create (uitgave) of .createIncome (inkomst)
  * met idPrefix 'edit-' / formId 'edit-form'.
  * Het bewerkformulier staat alleen in de DOM zolang het open is.
+ *
+ * Voorgeschoten (U12): kaart #openstaand (section.card.open-card) boven de lijst zolang er iets openstaat;
+ * per persoon .open-person[data-person] met .open-total[data-cents] en posten .open-item[data-expense-id]
+ * met knop .open-repaid[data-repay-id] ("Terugbetaald"). Labels in de lijst: .tag-advance (.is-open / .is-repaid).
+ * In de bewerkmodus van een voorgeschoten uitgave: #edit-repaid-box met #edit-mark-repaid of #edit-undo-repaid.
  */
 (function (root) {
   'use strict';
@@ -57,6 +62,65 @@
   }
 
   var rowLabels = [];
+
+  // Label "voorgeschoten · open" / "voorgeschoten · terug" (U12).
+  rowLabels.push(function (e) {
+    if (e.type !== 'expense' || !e.advanceFor) return null;
+    return e.repaidAt
+      ? [{ text: 'voorgeschoten · terug', className: 'tag-advance is-repaid' }]
+      : [{ text: 'voorgeschoten · open', className: 'tag-advance is-open' }];
+  });
+
+  function shortDate(iso) {
+    var d = G.calc.parseLocalDateTime(String(iso || '').slice(0, 10));
+    return d ? d.getDate() + ' ' + MONTHS[d.getMonth()] : '';
+  }
+
+  /** Kaart Openstaand (null als er niets openstaat). */
+  function renderOpen(entries) {
+    var groups = G.calc.openAdvances(entries);
+    if (!groups.length) return null;
+    var card = h('section', { className: 'card open-card', id: 'openstaand', 'aria-labelledby': 'openstaand-title' }, [
+      h('h2', { className: 'card-title', id: 'openstaand-title', text: 'Openstaand' })
+    ]);
+    groups.forEach(function (g) {
+      var items = h('ul', { className: 'open-items' });
+      g.items.forEach(function (e) {
+        items.appendChild(h('li', { className: 'open-item', 'data-expense-id': e.id }, [
+          h('span', { className: 'open-item-main' }, [
+            h('span', { className: 'open-item-what', text: e.what || '(zonder omschrijving)' }),
+            h('span', { className: 'open-item-date', text: shortDate(e.datetime) })
+          ]),
+          h('span', { className: 'open-item-amount amount', 'data-cents': String(e.amountCents), text: G.calc.formatEuro(e.amountCents) }),
+          h('button', {
+            type: 'button', className: 'btn btn-small open-repaid', 'data-repay-id': e.id, text: 'Terugbetaald',
+            'aria-label': 'Terugbetaald: ' + (e.what || '') + ', ' + G.calc.formatEuro(e.amountCents) + ' door ' + g.name
+          })
+        ]));
+      });
+      card.appendChild(h('div', { className: 'open-person', 'data-person': g.name }, [
+        h('div', { className: 'open-head' }, [
+          h('span', { className: 'open-name', text: g.name }),
+          h('span', { className: 'open-total amount', 'data-cents': String(g.totalCents), text: G.calc.formatEuro(g.totalCents) })
+        ]),
+        items
+      ]));
+    });
+    return card;
+  }
+
+  function markRepaid(app, id) {
+    var exp = app.store.getEntry(id);
+    try {
+      app.store.markRepaid(id);
+    } catch (err) {
+      app.toast(err.message, 4000);
+      return false;
+    }
+    if (app.store.lastError) app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
+    else app.toast('Terugbetaald: ' + G.calc.formatEuro(exp.amountCents) + ' van ' + exp.advanceFor);
+    return true;
+  }
 
   function renderRow(e, ctx) {
     var isIncome = e.type === 'income';
@@ -178,6 +242,8 @@
       listView.appendChild(h('p', { className: 'placeholder empty', id: 'overzicht-empty', text: 'Nog niets vastgelegd. Tik op Invoer om je eerste uitgave toe te voegen.' }));
       return;
     }
+    var open = renderOpen(entries);
+    if (open) listView.appendChild(open);
     listView.appendChild(renderList(app, entries, now));
   }
 
@@ -223,6 +289,7 @@
       editForm = G.invoerForm.createIncome(formOpts);
     } else {
       formOpts.categories = app.store.getSettings().categories;
+      formOpts.getAdvanceNames = function () { return G.calc.advanceNames(app.store.listEntries()); };
       editForm = G.invoerForm.create(formOpts);
     }
     editForm.fill(entry);
@@ -235,15 +302,24 @@
       var cur = app.store.getEntry(editingId);
       var label = cur ? (cur.what + ' (' + G.calc.formatEuro(cur.amountCents) + ')') : 'deze regel';
       if (!app.confirm('Weet je zeker dat je ' + label + ' wilt verwijderen?')) return;
-      app.store.deleteEntry(editingId);
+      var linked = cur && cur.type === 'expense' ? app.store.linkedIncome(editingId) : null;
+      var withLinked = false;
+      if (linked) {
+        withLinked = app.confirm('Deze uitgave is terugbetaald (' + G.calc.formatEuro(linked.amountCents) +
+          ' als inkomst). Wil je die terugbetaling ook verwijderen?\n\nOK = ook verwijderen, Annuleren = inkomst laten staan.');
+      }
+      app.store.deleteEntry(editingId, { withLinked: withLinked });
       if (app.store.lastError) app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
       else app.toast('Verwijderd: ' + label);
       closeEdit(app);
       root.scrollTo(0, 0);
     });
 
+    var repaidBox = entry.type === 'expense' && entry.advanceFor ? renderRepaidBox(app, el, entry) : null;
+
     editView = h('div', { className: 'edit-view', id: 'edit-view', 'data-editing': id }, [
       h('div', { className: 'edit-head' }, [back]),
+      repaidBox,
       editForm.el,
       h('div', { className: 'edit-danger' }, [del])
     ]);
@@ -251,6 +327,35 @@
     el.appendChild(editView);
     setTitle(entry.type === 'income' ? 'Inkomst bewerken' : 'Uitgave bewerken');
     root.scrollTo(0, 0);
+  }
+
+  /** Blok in de bewerkmodus van een voorgeschoten uitgave: terugbetaald markeren of ongedaan maken. */
+  function renderRepaidBox(app, el, entry) {
+    var box = h('div', { className: 'card repaid-box', id: 'edit-repaid-box', 'data-state': entry.repaidAt ? 'repaid' : 'open' });
+    var who = entry.advanceFor;
+    if (entry.repaidAt) {
+      var at = new Date(entry.repaidAt);
+      var when = isNaN(at.getTime()) ? '' : ' op ' + at.getDate() + ' ' + MONTHS[at.getMonth()];
+      box.appendChild(h('p', { className: 'repaid-text', text: 'Voorgeschoten voor ' + who + ' · terugbetaald' + when + '.' }));
+      var undo = h('button', { type: 'button', className: 'btn btn-small', id: 'edit-undo-repaid', text: 'Terugbetaling ongedaan maken' });
+      undo.addEventListener('click', function () {
+        var curId = editingId;
+        app.store.undoRepaid(curId);
+        if (app.store.lastError) app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
+        else app.toast('Terugbetaling ongedaan gemaakt. ' + who + ' staat weer open.');
+        openEdit(app, el, curId);
+      });
+      box.appendChild(undo);
+    } else {
+      box.appendChild(h('p', { className: 'repaid-text', text: 'Voorgeschoten voor ' + who + ' · nog niet terugbetaald.' }));
+      var mark = h('button', { type: 'button', className: 'btn btn-small', id: 'edit-mark-repaid', text: 'Terugbetaald' });
+      mark.addEventListener('click', function () {
+        var curId = editingId;
+        if (markRepaid(app, curId)) openEdit(app, el, curId);
+      });
+      box.appendChild(mark);
+    }
+    return box;
   }
 
   G.overzicht = {
@@ -267,6 +372,11 @@
       listView.addEventListener('click', function (ev) {
         var t = ev.target;
         while (t && t !== listView) {
+          if (t.getAttribute && t.getAttribute('data-repay-id')) {
+            markRepaid(app, t.getAttribute('data-repay-id'));
+            render(app);
+            return;
+          }
           if (t.getAttribute && t.getAttribute('data-entry-id')) {
             openEdit(app, el, t.getAttribute('data-entry-id'));
             return;

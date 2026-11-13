@@ -241,3 +241,86 @@ test('updateSettings: negatief startsaldo en onboarded blijven bewaard', () => {
   assert.equal(s.hourlyWageCents, 1500);
   assert.equal(s.onboarded, true);
 });
+
+// ---- voorgeschoten en terugbetaald (U12) ----
+
+test('markRepaid: maakt gekoppelde inkomst (terugbetaling, zelfde bedrag) en zet repaidAt', () => {
+  const fs = fakeStorage();
+  const store = S.createStore(fs, { now: fixedNow });
+  const e = store.addEntry(expense({ amountCents: 3000, what: 'Bioscoop', advanceFor: 'Sam' }));
+  const at = new Date(2026, 10, 14, 9, 5);
+  const income = store.markRepaid(e.id, at);
+  assert.equal(income.type, 'income');
+  assert.equal(income.source, 'terugbetaling');
+  assert.equal(income.amountCents, 3000);
+  assert.equal(income.linkedExpenseId, e.id);
+  assert.equal(income.datetime, '2026-11-14T09:05');
+  assert.notEqual(income.id, e.id);
+  assert.equal(store.getEntry(e.id).repaidAt, at.toISOString());
+  assert.deepEqual(store.linkedIncome(e.id), income);
+  // weggeschreven
+  const saved = JSON.parse(fs.map['geldboek.v1']);
+  assert.equal(saved.entries.length, 2);
+  assert.equal(saved.entries.find((x) => x.id === e.id).repaidAt, at.toISOString());
+});
+
+test('markRepaid: gooit bij onbekend, niet voorgeschoten, inkomst of al terugbetaald', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const own = store.addEntry(expense());
+  const adv = store.addEntry(expense({ advanceFor: 'Sam' }));
+  const inc = store.addEntry({ type: 'income', amountCents: 100, source: 'werk' });
+  assert.throws(() => store.markRepaid('bestaat-niet'));
+  assert.throws(() => store.markRepaid(own.id), /niet voorgeschoten/);
+  assert.throws(() => store.markRepaid(inc.id));
+  store.markRepaid(adv.id);
+  assert.throws(() => store.markRepaid(adv.id), /al terugbetaald/);
+  assert.equal(store.listEntries().length, 4);
+});
+
+test('undoRepaid: verwijdert gekoppelde inkomst en zet repaidAt terug op null', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const other = store.addEntry({ type: 'income', amountCents: 5000, source: 'werk' });
+  const adv = store.addEntry(expense({ amountCents: 2000, advanceFor: 'Sam' }));
+  store.markRepaid(adv.id);
+  assert.equal(store.undoRepaid(adv.id), true);
+  assert.equal(store.getEntry(adv.id).repaidAt, null);
+  assert.equal(store.linkedIncome(adv.id), null);
+  assert.deepEqual(store.listEntries().map((e) => e.id).sort(), [adv.id, other.id].sort());
+  assert.equal(store.undoRepaid(adv.id), false, 'niets meer te doen');
+  assert.equal(store.undoRepaid('onbekend'), false);
+  // opnieuw terugbetalen kan weer
+  assert.equal(store.markRepaid(adv.id).amountCents, 2000);
+});
+
+test('deleteEntry: uitgave met koppeling - withLinked verwijdert inkomst ook, anders blijft hij los staan', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const a = store.addEntry(expense({ advanceFor: 'Sam' }));
+  const incA = store.markRepaid(a.id);
+  assert.equal(store.deleteEntry(a.id, { withLinked: true }), true);
+  assert.equal(store.getEntry(incA.id), null);
+
+  const b = store.addEntry(expense({ advanceFor: 'Anna' }));
+  const incB = store.markRepaid(b.id);
+  store.deleteEntry(b.id);
+  const kept = store.getEntry(incB.id);
+  assert.ok(kept, 'inkomst blijft staan');
+  assert.equal(kept.linkedExpenseId, null);
+  assert.equal(store.listEntries().length, 1);
+});
+
+test('deleteEntry: gekoppelde inkomst verwijderen -> uitgave staat weer open', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const a = store.addEntry(expense({ advanceFor: 'Sam' }));
+  const inc = store.markRepaid(a.id);
+  store.deleteEntry(inc.id);
+  assert.equal(store.getEntry(a.id).repaidAt, null);
+});
+
+test('updateEntry: bedrag van terugbetaalde uitgave wijzigen past gekoppelde inkomst mee aan', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const a = store.addEntry(expense({ amountCents: 3000, advanceFor: 'Sam' }));
+  const inc = store.markRepaid(a.id);
+  store.updateEntry(a.id, { amountCents: 3500 });
+  assert.equal(store.getEntry(inc.id).amountCents, 3500);
+  assert.ok(store.getEntry(a.id).repaidAt, 'repaidAt blijft staan bij bewerken');
+});

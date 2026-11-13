@@ -249,3 +249,29 @@ test('wageAmount: uren x uurloon in centen; zonder uurloon null', () => {
   assert.equal(calc.wageAmount(4, null), null);
   assert.equal(calc.wageAmount(0, 1500), null);
 });
+
+test('openAdvances: alleen open voorgeschoten uitgaven, per persoon (hoofdletterongevoelig), oudste eerst', () => {
+  const a = exp(3000, '2026-11-05T12:00', { advanceFor: 'Sam' });
+  const b = exp(1250, '2026-11-03T09:00', { advanceFor: 'sam ' });
+  const c = exp(800, '2026-11-04T10:00', { advanceFor: 'Anna' });
+  const repaid = exp(500, '2026-11-02T10:00', { advanceFor: 'Sam', repaidAt: '2026-11-06T10:00:00.000Z' });
+  const own = exp(999, '2026-11-02T10:00');
+  const res = calc.openAdvances([a, b, c, repaid, own, inc(100, '2026-11-01T00:00')]);
+  assert.deepEqual(res.map((g) => [g.name, g.totalCents, g.items.map((e) => e.id)]), [
+    ['Anna', 800, [c.id]],
+    ['Sam', 4250, [b.id, a.id]]
+  ]);
+  assert.deepEqual(calc.openAdvances([]), []);
+  assert.deepEqual(calc.openAdvances([own, repaid]), []);
+});
+
+test('advanceNames: unieke namen, meest recente eerst', () => {
+  const list = [
+    exp(100, '2026-11-01T10:00', { advanceFor: 'Sam' }),
+    exp(100, '2026-11-05T10:00', { advanceFor: 'Anna' }),
+    exp(100, '2026-11-03T10:00', { advanceFor: 'sam' }),
+    exp(100, '2026-11-06T10:00')
+  ];
+  assert.deepEqual(calc.advanceNames(list), ['Anna', 'sam']);
+  assert.deepEqual(calc.advanceNames([]), []);
+});

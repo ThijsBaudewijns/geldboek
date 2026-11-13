@@ -395,6 +395,57 @@
     });
   }
 
+  /**
+   * Openstaande voorgeschoten bedragen (U12): uitgaven met advanceFor en zonder repaidAt,
+   * gegroepeerd per persoon (naam hoofdletterongevoelig, de naam van de nieuwste post wordt getoond).
+   * -> [{ name, totalCents, items: [uitgave, ...] (oudste eerst) }], personen op naam gesorteerd.
+   */
+  function openAdvances(entries) {
+    var groups = {};
+    var list = [];
+    (entries || []).forEach(function (e) {
+      if (!isExpense(e) || isOwnExpense(e) || e.repaidAt) return;
+      var name = e.advanceFor.trim();
+      var key = name.toLowerCase();
+      var g = groups[key];
+      if (!g) {
+        g = groups[key] = { name: name, totalCents: 0, items: [], latest: '' };
+        list.push(g);
+      }
+      g.totalCents += cents(e);
+      g.items.push(e);
+      var dt = String(e.datetime || '');
+      if (dt >= g.latest) { g.latest = dt; g.name = name; }
+    });
+    return list.map(function (g) {
+      g.items.sort(function (a, b) {
+        var x = String(a.datetime || ''), y = String(b.datetime || '');
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
+      return { name: g.name, totalCents: g.totalCents, items: g.items };
+    }).sort(function (a, b) {
+      var x = a.name.toLowerCase(), y = b.name.toLowerCase();
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
+  }
+
+  /** Eerder gebruikte namen bij "Voorgeschoten voor", meest recente eerst, zonder dubbelen (hoofdletterongevoelig). */
+  function advanceNames(entries) {
+    var sorted = (entries || []).filter(function (e) { return isExpense(e) && !isOwnExpense(e); }).slice().sort(function (a, b) {
+      var x = String(a.datetime || ''), y = String(b.datetime || '');
+      return x < y ? 1 : x > y ? -1 : 0;
+    });
+    var seen = {};
+    var out = [];
+    sorted.forEach(function (e) {
+      var name = e.advanceFor.trim();
+      if (seen[name.toLowerCase()]) return;
+      seen[name.toLowerCase()] = true;
+      out.push(name);
+    });
+    return out;
+  }
+
   var calc = {
     DAY_MS: DAY_MS,
     parseAmount: parseAmount,
@@ -412,6 +463,8 @@
     reviewQueue: reviewQueue,
     quickPicks: quickPicks,
     isOwnExpense: isOwnExpense,
+    openAdvances: openAdvances,
+    advanceNames: advanceNames,
     toISODate: toISODate,
     toLocalDateTime: toLocalDateTime,
     parseLocalDateTime: parseLocalDateTime

@@ -92,7 +92,10 @@ for (const size of SIZES) {
       // Overzicht met Openstaand en bewerkmodus.
       await goTab(page, 'overzicht');
       await expect(page.locator('section#openstaand')).toBeVisible();
+      await expect(page.locator('section#spaardoel')).toBeVisible();
       await check('overzicht');
+      await page.locator('#spaardoel').scrollIntoViewIfNeeded();
+      await check('overzicht spaardoel');
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await check('overzicht onderaan');
       await page.locator('.entry-row[data-entry-id]').first().click();
@@ -129,6 +132,9 @@ for (const size of SIZES) {
       await page.locator('#settings-link').click();
       await expect(page.locator('#view-instellingen')).toBeVisible();
       await check('instellingen');
+      await page.locator('#s-month-start').scrollIntoViewIfNeeded();
+      await expect(page.locator('#s-goal')).toBeVisible();
+      await check('instellingen spaardoel en betaaldag');
       await page.locator('#settings-gegevens').scrollIntoViewIfNeeded();
       await expect(page.locator('#backup-json')).toBeVisible();
       await check('instellingen gegevens');

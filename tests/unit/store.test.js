@@ -27,7 +27,7 @@ test('load: lege opslag -> standaarddata volgens datamodel', () => {
   const d = store.load();
   assert.deepEqual(d, {
     version: 1,
-    settings: { startBalanceCents: 0, startDate: '2026-11-13', hourlyWageCents: null, categories: S.DEFAULT_CATEGORIES, lastExportAt: null, onboarded: false, backupReminderDismissedOn: null },
+    settings: { startBalanceCents: 0, startDate: '2026-11-13', hourlyWageCents: null, categories: S.DEFAULT_CATEGORIES, lastExportAt: null, onboarded: false, backupReminderDismissedOn: null, savingsGoalCents: 20000, monthStartDay: 25 },
     entries: []
   });
 });
@@ -439,4 +439,28 @@ test('attachMirror: gebruiker sloeg al iets op vóór het lezen klaar was -> nie
   store.addEntry(expense({ what: 'Nieuw' }));
   assert.equal(await p, false);
   assert.deepEqual(store.listEntries().map((e) => e.what), ['Nieuw']);
+});
+
+test('settings: spaardoel en betaaldag krijgen standaardwaarden en worden genormaliseerd', () => {
+  // Oude data zonder de nieuwe velden -> standaard 200 euro en dag 25.
+  const old = JSON.stringify({ version: 1, settings: { startBalanceCents: 100, startDate: '2026-11-01', onboarded: true }, entries: [] });
+  const store = S.createStore(fakeStorage({ 'geldboek.v1': old }), { now: fixedNow });
+  assert.equal(store.getSettings().savingsGoalCents, 20000);
+  assert.equal(store.getSettings().monthStartDay, 25);
+  // 0 en null = geen spaardoel (blijft 0, niet terug naar standaard).
+  assert.equal(store.updateSettings({ savingsGoalCents: 0 }).savingsGoalCents, 0);
+  assert.equal(store.updateSettings({ savingsGoalCents: null }).savingsGoalCents, 0);
+  assert.equal(store.updateSettings({ savingsGoalCents: 1234.4 }).savingsGoalCents, 1234);
+  assert.equal(store.updateSettings({ savingsGoalCents: -5 }).savingsGoalCents, 0);
+  // Betaaldag 1-28; daarbuiten of ongeldig -> 25.
+  assert.equal(store.updateSettings({ monthStartDay: 1 }).monthStartDay, 1);
+  assert.equal(store.updateSettings({ monthStartDay: 28 }).monthStartDay, 28);
+  assert.equal(store.updateSettings({ monthStartDay: 29 }).monthStartDay, 25);
+  assert.equal(store.updateSettings({ monthStartDay: 0 }).monthStartDay, 25);
+  assert.equal(store.updateSettings({ monthStartDay: 'x' }).monthStartDay, 25);
+  // Blijft bewaard na opnieuw laden.
+  store.updateSettings({ savingsGoalCents: 0, monthStartDay: 1 });
+  const again = S.createStore(fakeStorage({ 'geldboek.v1': JSON.stringify(store.getData()) }), { now: fixedNow });
+  assert.equal(again.getSettings().savingsGoalCents, 0);
+  assert.equal(again.getSettings().monthStartDay, 1);
 });

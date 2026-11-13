@@ -21,6 +21,14 @@ Leg een maand lang **elke uitgave** vast, meteen of dezelfde dag: hoeveel, wat, 
 Kreeg je geld (loon, iets terugbetaald)? Zet het erbij onder **Inkomst**.
 Na een week vraagt Geldboek bij **Terugkijken** of iets het geld nog waard was: geef dan eerlijk een cijfer.
 Na de maand kijken we samen naar de **Reflectie**.
+Velden met een **\*** zijn verplicht; wat onder **Optioneel** staat mag je overslaan, maar het helpt bij het terugkijken.
+
+### Spaardoel
+
+Bovenaan in **Overzicht** zie je je **spaardoel**: elke maand moet je saldo minstens € 200 hoger eindigen dan de maand ervoor.
+Een "spaarmaand" loopt van je **betaaldag** (de dag waarop je salaris binnenkomt, standaard de 25e) tot de dag ervoor in de volgende maand.
+Je ziet hoe ver je deze maand bent, hoeveel dagen er nog over zijn, en of je vorige maanden het doel haalde.
+Het bedrag en de betaaldag pas je aan bij het **tandwiel** (Instellingen). Doel op 0 = geen spaardoel.
 
 ### Elke week: back-up maken
 
@@ -53,6 +61,9 @@ npm run e2e                     # browsertests (Playwright: iphone/WebKit en chr
 ```
 
 ### Publiceren op GitHub Pages
+
+**De definitieve link is https://thijsbaudewijns.github.io/geldboek/** (publieke repo `geldboek`).
+Stuur je vriend precies deze link; hij mag na de installatie nooit meer veranderen.
 
 1. Maak een repo aan op GitHub. **Kies de naam meteen goed:** de link wordt
    `https://<gebruiker>.github.io/<repo>/` en die mag na de installatie op de iPhone **nooit meer veranderen**

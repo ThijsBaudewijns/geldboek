@@ -13,5 +13,5 @@ Basis: 760 aanroepen, 1011k output-tokens, 87 tok/s, 2.0 s overhead per aanroep.
 | 6. Terugkijken na een week + uren-werk | 28 | 22-41 | 0 | 4 |
 | 7. Reflectiepagina | 38 | 33-55 | 0 | 9 |
 | 8. Backup, opslagvangnet en PWA | 50 | 41-73 | 0 | 11 |
-| 9. End-to-end-test, publicatieworkflow en handleidingen | 38 | 32-54 | 0 | |
-| **Totaal** | 302 | 246-444 | 0 | |
+| 9. End-to-end-test, publicatieworkflow en handleidingen | 38 | 32-54 | 0 | 10 |
+| **Totaal** | 302 | 246-444 | 0 | 61 |

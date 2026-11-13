@@ -656,3 +656,45 @@ body.gated .main { padding-bottom: calc(24px + var(--safe-bottom)); }
   cursor: pointer;
 }
 .update-bar[hidden] { display: none; }
+
+/* Verplichte velden: sterretje achter het label */
+.req { color: var(--accent); font-weight: 700; margin-left: 2px; }
+.form-legend { margin: 0; }
+.more-body > .form-legend { margin-top: -6px; }
+
+/* Instellingen: betaaldag */
+.input-day { max-width: 6em; font-variant-numeric: tabular-nums; }
+
+/* Spaardoel (Overzicht) */
+.goal-card { margin-top: 0; }
+.goal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.goal-head .card-title { margin-bottom: 2px; }
+.goal-period { font-size: 14px; color: var(--text-muted); white-space: nowrap; }
+.goal-target { margin: 0 0 10px; font-size: 14px; color: var(--text-muted); }
+.goal-now { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.goal-diff { font-size: 24px; font-weight: 700; }
+.goal-bar {
+  height: 10px;
+  margin: 8px 0 8px;
+  background: var(--chart-track);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.goal-fill { height: 100%; background: var(--chart-bar); border-radius: 5px; }
+.goal-status { margin: 0 0 2px; font-weight: 650; }
+.goal-card[data-status="behaald"] .goal-status { color: var(--income); }
+.goal-card[data-status="te-gaan"] .goal-status { color: var(--text); }
+.goal-history-title { margin: 14px 0 4px; font-size: 14px; font-weight: 650; color: var(--text-muted); }
+.goal-history { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.goal-month {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.goal-month-period { font-size: 15px; }
+.goal-month-diff { text-align: right; font-weight: 600; }
+.goal-month-result { grid-column: 1 / -1; font-size: 13px; }
+.goal-month-result.is-achieved { color: var(--income); }
+.goal-month-result.is-missed { color: var(--expense); }

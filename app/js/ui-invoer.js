@@ -73,22 +73,43 @@
     };
   }
 
-  function field(id, labelText, control, extraClass) {
+  /** Labeltekst met (bij verplicht) een sterretje in accentkleur; het sterretje is aria-hidden. */
+  function labelChildren(labelText, required) {
+    return required ? [labelText, h('span', { className: 'req', 'aria-hidden': 'true', text: ' *' })] : [labelText];
+  }
+
+  /**
+   * Veld met label en foutmelding. required: sterretje achter het label en required/aria-required op het
+   * invoerveld (de forms hebben novalidate, dus de eigen Nederlandse validatie blijft leidend).
+   */
+  function field(id, labelText, control, extraClass, required) {
     var err = h('p', { className: 'error', id: id + '-error', 'aria-live': 'polite', hidden: true });
-    var f = h('div', { className: 'field' + (extraClass ? ' ' + extraClass : ''), 'data-field': id }, [
-      h('label', { className: 'label', 'for': id, text: labelText }),
+    var f = h('div', { className: 'field' + (extraClass ? ' ' + extraClass : '') + (required ? ' is-required' : ''), 'data-field': id }, [
+      h('label', { className: 'label', 'for': id }, labelChildren(labelText, required)),
       control,
       err
     ]);
+    if (required) {
+      var input = control.matches && control.matches('input, textarea') ? control : control.querySelector('input, textarea');
+      if (input) {
+        input.required = true;
+        input.setAttribute('aria-required', 'true');
+      }
+    }
     f._error = err;
     return f;
   }
 
-  function groupField(name, labelText, group, prefix) {
-    return h('div', { className: 'field', 'data-field': name }, [
-      h('span', { className: 'label', id: (prefix || '') + 'label-' + name, text: labelText }),
+  function groupField(name, labelText, group, prefix, required) {
+    return h('div', { className: 'field' + (required ? ' is-required' : ''), 'data-field': name }, [
+      h('span', { className: 'label', id: (prefix || '') + 'label-' + name }, labelChildren(labelText, required)),
       group.el
     ]);
+  }
+
+  /** Korte uitleg bij het blok "Optioneel". */
+  function legend(id) {
+    return h('p', { className: 'hint form-legend', id: id, text: '* = verplicht. De rest is optioneel, maar helpt bij het terugkijken.' });
   }
 
   function setError(f, msg) {
@@ -163,15 +184,16 @@
     fAdvance.insertBefore(h('p', { className: 'hint', id: P + 'advance-hint', text: 'Betaalde je dit voor iemand anders? Dan telt het niet als eigen uitgave.' }), fAdvance._error);
     fAdvance.appendChild(advanceList);
 
-    var fAmount = field(P + 'amount', 'Bedrag', amountWrap);
-    var fWhat = field(P + 'what', 'Wat', what);
-    var fNote = field(P + 'note', 'Waarom (argumentatie)', note);
+    var fAmount = field(P + 'amount', 'Bedrag', amountWrap, null, true);
+    var fWhat = field(P + 'what', 'Wat', what, null, true);
+    var fNote = field(P + 'note', 'Waarom (argumentatie)', note, null, true);
     var fDatetime = field(P + 'datetime', 'Datum en tijd', datetime);
-    var fFixed = groupField('fixed', 'Vast of variabel', fixed, P === 'f-' ? '' : P);
+    var fFixed = groupField('fixed', 'Vast of variabel', fixed, P === 'f-' ? '' : P, true);
 
     var more = h('details', { className: 'more', open: true }, [
-      h('summary', { text: 'Meer' }),
+      h('summary', { text: 'Optioneel' }),
       h('div', { className: 'more-body' }, [
+        legend(P + 'legend'),
         groupField('category', 'Categorie', category, P === 'f-' ? '' : P),
         groupField('need', 'Nodig, wil of impuls?', need, P === 'f-' ? '' : P),
         groupField('worth', 'Was het het geld waard? (1-5)', worth, P === 'f-' ? '' : P),
@@ -313,7 +335,8 @@
   }
 
   /**
-   * Inkomstformulier (U10): bedrag, bron-chips, uren (alleen bij werk; met uurloon vult
+   * Verplichte velden hebben een sterretje (*) achter het label; de rest staat in het inklapbare blok "Optioneel".
+ * Inkomstformulier (U10): bedrag, bron-chips, uren (alleen bij werk; met uurloon vult
    * uren x uurloon het bedrag voor, overschrijfbaar), omschrijving (optioneel, in `note`), datum/tijd.
    * options: { idPrefix: 'i-', formId: 'income-form', submitLabel, getHourlyWageCents(), onSubmit(fields) }
    * onSubmit krijgt { type: 'income', amountCents, source, hours, note, what, datetime }.
@@ -351,20 +374,23 @@
     });
 
     var hint = h('p', { className: 'hint', id: P + 'hours-hint' });
-    var fAmount = field(P + 'amount', 'Bedrag', amountWrap);
-    var fHours = field(P + 'hours', 'Uren gewerkt (optioneel)', hours);
+    var fAmount = field(P + 'amount', 'Bedrag', amountWrap, null, true);
+    var fHours = field(P + 'hours', 'Uren gewerkt', hours);
     fHours.insertBefore(hint, fHours._error);
-    var fNote = field(P + 'note', 'Omschrijving (optioneel)', note);
+    var fNote = field(P + 'note', 'Omschrijving', note);
     var fDatetime = field(P + 'datetime', 'Datum en tijd', datetime);
-    var fSource = groupField('source', 'Bron', source, P);
+    var fSource = groupField('source', 'Bron', source, P, true);
+    var more = h('details', { className: 'more', open: true }, [
+      h('summary', { text: 'Optioneel' }),
+      h('div', { className: 'more-body' }, [legend(P + 'legend'), fHours, fNote])
+    ]);
 
     var submit = h('button', { type: 'submit', className: 'btn btn-primary btn-block', id: P + 'submit', text: opts.submitLabel || 'Opslaan' });
     var form = h('form', { className: 'form', id: opts.formId || 'income-form', novalidate: true, autocomplete: 'off' }, [
       fAmount,
       fSource,
-      fHours,
-      fNote,
       fDatetime,
+      more,
       h('div', { className: 'save-bar' }, [submit])
     ]);
 

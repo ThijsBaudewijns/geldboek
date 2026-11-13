@@ -35,7 +35,7 @@ test.describe('Invoer uitgave', () => {
 
   test('optionele velden worden meegeslagen', async ({ page }) => {
     await openApp(page);
-    await expect(page.locator('details.more')).toHaveAttribute('open', '');
+    await expect(page.locator('#expense-form details.more')).toHaveAttribute('open', '');
     await page.locator('[data-group="category"] [data-value="Vervoer"]').click();
     await page.locator('[data-group="need"] [data-value="nodig"]').click();
     await page.locator('[data-group="worth"] [data-value="4"]').click();
@@ -125,6 +125,71 @@ test.describe('Invoer uitgave', () => {
       expect(box.y, sel).toBeGreaterThanOrEqual(0);
       expect(box.y + box.height, sel).toBeLessThanOrEqual(tabbarTop + 0.5);
     }
+  });
+});
+
+test.describe('Verplicht en optioneel', () => {
+  /** Labeltekst per veld (data-field), zoals hij op het scherm staat. */
+  async function labels(page, formSel) {
+    return page.locator(`${formSel} .field[data-field] > .label`).evaluateAll((els) =>
+      els.map((el) => ({ field: el.closest('.field').getAttribute('data-field'), text: el.textContent.trim() })));
+  }
+
+  test('uitgave: sterretje bij verplichte velden, blok heet "Optioneel"', async ({ page }) => {
+    await openApp(page);
+    const all = await labels(page, '#expense-form');
+    const byField = Object.fromEntries(all.map((l) => [l.field, l.text]));
+    for (const f of ['f-amount', 'f-what', 'f-note', 'fixed']) expect(byField[f], f).toMatch(/\*$/);
+    for (const f of ['f-datetime', 'category', 'need', 'worth', 'mood', 'f-advance-for']) expect(byField[f], f).not.toContain('*');
+    // Sterretje is visueel (aria-hidden); velden zelf zijn required voor hulptechnologie.
+    await expect(page.locator('#expense-form .field[data-field="f-amount"] .req')).toHaveAttribute('aria-hidden', 'true');
+    for (const id of ['#f-amount', '#f-what', '#f-note']) {
+      await expect(page.locator(id)).toHaveAttribute('aria-required', 'true');
+      await expect(page.locator(id)).toHaveAttribute('required', '');
+    }
+    await expect(page.locator('#f-datetime')).not.toHaveAttribute('required', '');
+    await expect(page.locator('#expense-form')).toHaveAttribute('novalidate', '');
+    await expect(page.locator('#expense-form details.more > summary')).toHaveText('Optioneel');
+    await expect(page.locator('#f-legend')).toHaveText('* = verplicht. De rest is optioneel, maar helpt bij het terugkijken.');
+    await expect(page.locator('#expense-form')).not.toContainText('Meer');
+    // Eigen Nederlandse foutmeldingen blijven leidend (geen browserballon: het formulier wordt gewoon verwerkt).
+    await page.locator('#f-submit').click();
+    await expect(page.locator('#f-amount-error')).toHaveText('Vul een bedrag in, bijvoorbeeld 12,50.');
+  });
+
+  test('inkomst: bedrag en bron verplicht, uren en omschrijving onder "Optioneel"', async ({ page }) => {
+    await openApp(page);
+    await page.locator('[data-group="entry-type"] [data-value="income"]').click();
+    const all = await labels(page, '#income-form');
+    const byField = Object.fromEntries(all.map((l) => [l.field, l.text]));
+    expect(byField['i-amount']).toMatch(/\*$/);
+    expect(byField.source).toMatch(/\*$/);
+    for (const f of ['i-hours', 'i-note', 'i-datetime']) expect(byField[f], f).not.toContain('*');
+    await expect(page.locator('#income-form details.more > summary')).toHaveText('Optioneel');
+    await expect(page.locator('#income-form details.more #i-hours')).toHaveCount(1);
+    await expect(page.locator('#income-form details.more #i-note')).toHaveCount(1);
+    await expect(page.locator('#i-amount')).toHaveAttribute('aria-required', 'true');
+    await expect(page.locator('#i-legend')).toBeVisible();
+  });
+
+  test('bewerkmodus gebruikt dezelfde markering', async ({ page }) => {
+    await openApp(page, {
+      entries: [
+        { id: 'e_1_a', type: 'expense', amountCents: 500, datetime: '2026-11-13T10:00', what: 'Koffie', note: 'Moe', fixed: 'variabel' },
+        { id: 'e_2_b', type: 'income', amountCents: 9000, datetime: '2026-11-13T11:00', what: 'Werk', source: 'werk' }
+      ],
+      settings: { startDate: '2026-11-01' },
+      hash: 'overzicht'
+    });
+    await page.locator('.entry-row[data-entry-id="e_1_a"]').click();
+    await expect(page.locator('#edit-form .field[data-field="edit-what"] > .label')).toHaveText('Wat *');
+    await expect(page.locator('#edit-form .field[data-field="edit-datetime"] > .label')).toHaveText('Datum en tijd');
+    await expect(page.locator('#edit-form details.more > summary')).toHaveText('Optioneel');
+    await page.locator('#edit-back').click();
+    await page.locator('.entry-row[data-entry-id="e_2_b"]').click();
+    await expect(page.locator('#edit-form .field[data-field="edit-amount"] > .label')).toHaveText('Bedrag *');
+    await expect(page.locator('#edit-form .field[data-field="edit-note"] > .label')).toHaveText('Omschrijving');
+    await expect(page.locator('#edit-form details.more > summary')).toHaveText('Optioneel');
   });
 });
 

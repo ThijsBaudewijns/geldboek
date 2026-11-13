@@ -416,3 +416,124 @@ test('reflection: verdelingen tellen alleen eigen uitgaven (zonder advanceFor), 
   assert.equal(r.weeks[0].ownExpenseCents, 4000);
   assert.equal(r.weeks[0].expenseCents, 13000);
 });
+
+// ---------- spaardoel ----------
+test('savingsPeriodOf: betaaldag 25', () => {
+  assert.deepEqual(calc.savingsPeriodOf('2026-11-13', 25), { from: '2026-10-25', to: '2026-11-24' });
+  assert.deepEqual(calc.savingsPeriodOf('2026-11-24T23:59', 25), { from: '2026-10-25', to: '2026-11-24' });
+  assert.deepEqual(calc.savingsPeriodOf('2026-11-25', 25), { from: '2026-11-25', to: '2026-12-24' });
+  assert.deepEqual(calc.savingsPeriodOf(new Date(2026, 9, 25, 0, 0), 25), { from: '2026-10-25', to: '2026-11-24' });
+});
+
+test('savingsPeriodOf: dag 1 = kalendermaand (ook februari en schrikkeljaar)', () => {
+  assert.deepEqual(calc.savingsPeriodOf('2026-11-13', 1), { from: '2026-11-01', to: '2026-11-30' });
+  assert.deepEqual(calc.savingsPeriodOf('2026-02-28', 1), { from: '2026-02-01', to: '2026-02-28' });
+  assert.deepEqual(calc.savingsPeriodOf('2028-02-15', 1), { from: '2028-02-01', to: '2028-02-29' });
+});
+
+test('savingsPeriodOf: jaargrens dec -> jan', () => {
+  assert.deepEqual(calc.savingsPeriodOf('2026-12-25', 25), { from: '2026-12-25', to: '2027-01-24' });
+  assert.deepEqual(calc.savingsPeriodOf('2027-01-10', 25), { from: '2026-12-25', to: '2027-01-24' });
+  assert.deepEqual(calc.savingsPeriodOf('2027-01-10', 15), { from: '2026-12-15', to: '2027-01-14' });
+});
+
+test('savingsPeriodOf: betaaldag 28 bestaat in elke maand; ongeldige dag -> 25', () => {
+  assert.deepEqual(calc.savingsPeriodOf('2027-02-28', 28), { from: '2027-02-28', to: '2027-03-27' });
+  assert.deepEqual(calc.savingsPeriodOf('2027-03-01', 28), { from: '2027-02-28', to: '2027-03-27' });
+  assert.deepEqual(calc.savingsPeriodOf('2027-01-30', 28), { from: '2027-01-28', to: '2027-02-27' });
+  assert.deepEqual(calc.savingsPeriodOf('2026-11-13', 31), { from: '2026-10-25', to: '2026-11-24' });
+});
+
+const SAVE_SETTINGS = { startBalanceCents: 10000, startDate: '2026-10-01', savingsGoalCents: 20000, monthStartDay: 25 };
+
+test('savingsMonths: geen doel (0/leeg/null) of geen startdatum -> lege lijst', () => {
+  const entries = [inc(50000, '2026-10-26T10:00')];
+  for (const goal of [0, null, undefined, -500]) {
+    assert.deepEqual(calc.savingsMonths(Object.assign({}, SAVE_SETTINGS, { savingsGoalCents: goal }), entries, '2026-11-13T12:00'), [], String(goal));
+  }
+  assert.deepEqual(calc.savingsMonths(Object.assign({}, SAVE_SETTINGS, { startDate: null }), entries, '2026-11-13T12:00'), []);
+  assert.deepEqual(calc.savingsMonths(null, entries, '2026-11-13T12:00'), []);
+});
+
+test('savingsMonths: eerste (gedeeltelijke) spaarmaand = maand van startDate, vergeleken met startsaldo', () => {
+  // startDate 1 okt, betaaldag 25: eerste spaarmaand is 1 okt t/m 24 okt (deel van 25 sep - 24 okt).
+  const entries = [
+    exp(5000, '2026-09-30T10:00'),        // voor startDate: telt niet mee (U11)
+    inc(30000, '2026-10-02T10:00'),
+    exp(2000, '2026-10-24T23:00'),
+    inc(100000, '2026-10-25T09:00'),      // salaris: tweede spaarmaand
+    exp(40000, '2026-11-10T12:00')
+  ];
+  const months = calc.savingsMonths(SAVE_SETTINGS, entries, '2026-11-13T12:00');
+  assert.equal(months.length, 2);
+  const [first, cur] = months;
+  assert.equal(first.from, '2026-10-01');
+  assert.equal(first.to, '2026-10-24');
+  assert.equal(first.partial, true);
+  assert.equal(first.startCents, 10000);        // startsaldo
+  assert.equal(first.endCents, 38000);          // 100 + 300 - 20
+  assert.equal(first.diffCents, 28000);
+  assert.equal(first.achieved, true);
+  assert.equal(first.current, false);
+  assert.equal(first.daysLeft, null);
+  assert.equal(cur.from, '2026-10-25');
+  assert.equal(cur.to, '2026-11-24');
+  assert.equal(cur.partial, false);
+  assert.equal(cur.startCents, 38000);
+  assert.equal(cur.endCents, 98000);            // 380 + 1000 - 400
+  assert.equal(cur.diffCents, 60000);
+  assert.equal(cur.current, true);
+  assert.equal(cur.daysLeft, 12);               // 13 nov -> 25 nov
+  assert.equal(cur.goalCents, 20000);
+  assert.equal(cur.endCents, calc.balance(SAVE_SETTINGS, entries));
+});
+
+test('savingsMonths: startDate precies op de betaaldag -> volle eerste maand', () => {
+  const s = Object.assign({}, SAVE_SETTINGS, { startDate: '2026-10-25' });
+  const months = calc.savingsMonths(s, [], '2026-11-01T08:00');
+  assert.equal(months.length, 1);
+  assert.equal(months[0].from, '2026-10-25');
+  assert.equal(months[0].partial, false);
+  assert.equal(months[0].diffCents, 0);
+  assert.equal(months[0].achieved, false);
+});
+
+test('savingsMonths: behaald precies op de grens, niet behaald 1 cent eronder, negatief verschil', () => {
+  const s = Object.assign({}, SAVE_SETTINGS, { startDate: '2026-09-25', startBalanceCents: 0 });
+  const entries = [
+    inc(20000, '2026-09-26T10:00'),               // maand 1: +200,00 -> precies het doel
+    inc(19999, '2026-10-26T10:00'),               // maand 2: +199,99 -> net niet
+    exp(3500, '2026-11-26T10:00')                 // maand 3: -35,00
+  ];
+  const months = calc.savingsMonths(s, entries, '2026-12-01T10:00');
+  assert.deepEqual(months.map(m => [m.from, m.to, m.diffCents, m.achieved, m.current]), [
+    ['2026-09-25', '2026-10-24', 20000, true, false],
+    ['2026-10-25', '2026-11-24', 19999, false, false],
+    ['2026-11-25', '2026-12-24', -3500, false, true]
+  ]);
+  assert.equal(months[2].startCents, 39999);
+  assert.equal(months[2].daysLeft, 24);
+});
+
+test('savingsMonths: over de jaargrens en met betaaldag 1', () => {
+  const s = { startBalanceCents: 0, startDate: '2026-12-10', savingsGoalCents: 5000, monthStartDay: 1 };
+  const months = calc.savingsMonths(s, [inc(6000, '2026-12-31T23:59'), exp(1000, '2027-01-01T00:00')], '2027-01-15T12:00');
+  assert.deepEqual(months.map(m => [m.from, m.to, m.diffCents, m.achieved]), [
+    ['2026-12-10', '2026-12-31', 6000, true],
+    ['2027-01-01', '2027-01-31', -1000, false]
+  ]);
+  assert.equal(months[1].daysLeft, 17);
+});
+
+test('savingsMonths: klok voor de startdatum -> alleen de eerste maand', () => {
+  const months = calc.savingsMonths(SAVE_SETTINGS, [], '2026-09-01T10:00');
+  assert.equal(months.length, 1);
+  assert.equal(months[0].current, true);
+});
+
+test('formatPeriod: korte Nederlandse maandnamen', () => {
+  assert.equal(calc.formatPeriod({ from: '2026-10-25', to: '2026-11-24' }), '25 okt – 24 nov');
+  assert.equal(calc.formatPeriod({ from: '2026-12-25', to: '2027-01-24' }, true), '25 dec 2026 – 24 jan 2027');
+  assert.equal(calc.formatPeriod({ from: '2026-03-01', to: '2026-03-31' }, true), '1 mrt – 31 mrt 2026');
+  assert.equal(calc.formatPeriod(null), '');
+});

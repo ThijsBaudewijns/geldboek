@@ -72,7 +72,9 @@
       categories: DEFAULT_CATEGORIES.slice(),
       lastExportAt: null,
       onboarded: false,
-      backupReminderDismissedOn: null // "YYYY-MM-DD": back-upherinnering die dag weggeklikt (fase 8)
+      backupReminderDismissedOn: null, // "YYYY-MM-DD": back-upherinnering die dag weggeklikt (fase 8)
+      savingsGoalCents: 20000, // spaardoel per spaarmaand (integer centen); 0 = geen spaardoel tonen
+      monthStartDay: 25        // betaaldag 1-28: een spaarmaand loopt van deze dag tot de dag ervoor in de volgende maand
     };
   }
 
@@ -93,6 +95,11 @@
     out.onboarded = out.onboarded === true;
     out.backupReminderDismissedOn = typeof out.backupReminderDismissedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(out.backupReminderDismissedOn)
       ? out.backupReminderDismissedOn : null;
+    // Spaardoel: null/leeg/negatief -> 0 (geen doel); ontbrekend -> standaard.
+    if (!('savingsGoalCents' in out) || out.savingsGoalCents === undefined) out.savingsGoalCents = d.savingsGoalCents;
+    else out.savingsGoalCents = typeof out.savingsGoalCents === 'number' && isFinite(out.savingsGoalCents) && out.savingsGoalCents > 0 ? Math.round(out.savingsGoalCents) : 0;
+    var msd = typeof out.monthStartDay === 'number' && isFinite(out.monthStartDay) ? Math.round(out.monthStartDay) : d.monthStartDay;
+    out.monthStartDay = msd >= 1 && msd <= 28 ? msd : d.monthStartDay;
     return out;
   }
 

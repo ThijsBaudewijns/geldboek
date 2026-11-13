@@ -666,7 +666,111 @@
     };
   }
 
+  // ---------- spaardoel ----------
+
+  var MONTHS_SHORT = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+
+  /** Betaaldag 1-28 (standaard 25). */
+  function monthStartDayOf(v) {
+    var n = typeof v === 'number' && isFinite(v) ? Math.round(v) : 25;
+    return n >= 1 && n <= 28 ? n : 25;
+  }
+
+  /**
+   * Spaarmaand waarin `date` valt: { from, to } als "YYYY-MM-DD", beide inclusief.
+   * Een spaarmaand loopt van monthStartDay tot de dag ervoor in de volgende maand
+   * (25 okt t/m 24 nov); met dag 1 is het de kalendermaand. monthStartDay is hooguit 28,
+   * dus elke maand heeft die dag.
+   */
+  function savingsPeriodOf(date, monthStartDay) {
+    var d = toDate(date);
+    var msd = monthStartDayOf(monthStartDay);
+    var y = d.getFullYear(), m = d.getMonth();
+    if (d.getDate() < msd) m -= 1;
+    var from = new Date(y, m, msd);
+    var to = new Date(y, m + 1, msd - 1);
+    return { from: toISODate(from), to: toISODate(to) };
+  }
+
+  /**
+   * Spaarmaanden vanaf de spaarmaand waarin settings.startDate valt t/m die van `now`.
+   * Doel: elke spaarmaand eindigt het saldo minstens settings.savingsGoalCents hoger dan
+   * aan het eind van de vorige. De eerste (mogelijk gedeeltelijke) spaarmaand wordt
+   * vergeleken met het startsaldo; zijn `from` is dan de startdatum (partial: true).
+   * Saldo volgt U11 (alleen entries vanaf startDate). endCents = saldo t/m de laatste dag
+   * van de spaarmaand (voor de lopende maand dus het saldo nu).
+   * Geen doel (0/leeg) of geen startdatum -> [].
+   * Elk item: { from, to, startCents, endCents, diffCents, goalCents, achieved, current, partial, daysLeft }
+   * (daysLeft alleen bij de lopende maand: dagen tot de nieuwe spaarmaand begint).
+   */
+  function savingsMonths(settings, entries, now) {
+    var s = settings || {};
+    var goal = typeof s.savingsGoalCents === 'number' && isFinite(s.savingsGoalCents) ? Math.round(s.savingsGoalCents) : 0;
+    if (goal <= 0) return [];
+    var startDate = typeof s.startDate === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s.startDate) ? s.startDate.slice(0, 10) : null;
+    if (!startDate) return [];
+    var msd = monthStartDayOf(s.monthStartDay);
+    var n = toDate(now);
+    var today = toISODate(n);
+    var startCents = typeof s.startBalanceCents === 'number' && isFinite(s.startBalanceCents) ? Math.round(s.startBalanceCents) : 0;
+    var list = (entries || []).filter(function (e) { return inRange(e, startDate, null); });
+
+    var period = savingsPeriodOf(startDate, msd);
+    var current = savingsPeriodOf(today, msd);
+    if (current.from < period.from) current = period; // klok voor de startdatum: alleen de eerste maand
+    var out = [];
+    var prevEnd = startCents;
+    var guard = 0;
+    while (period && guard++ < 1200) {
+      var end = startCents;
+      var to = period.to;
+      list.forEach(function (e) {
+        if (!inRange(e, null, to)) return;
+        if (isIncome(e)) end += cents(e);
+        else if (isExpense(e)) end -= cents(e);
+      });
+      var isCurrent = period.from === current.from;
+      var item = {
+        from: out.length === 0 && startDate > period.from ? startDate : period.from,
+        to: period.to,
+        startCents: prevEnd,
+        endCents: end,
+        diffCents: end - prevEnd,
+        goalCents: goal,
+        achieved: end - prevEnd >= goal,
+        current: isCurrent,
+        partial: out.length === 0 && startDate > period.from,
+        daysLeft: null
+      };
+      if (isCurrent) {
+        var t = parseLocalDateTime(today), e2 = parseLocalDateTime(addDaysISO(period.to, 1));
+        item.daysLeft = Math.round((e2.getTime() - t.getTime()) / DAY_MS);
+      }
+      out.push(item);
+      if (isCurrent) break;
+      prevEnd = end;
+      period = savingsPeriodOf(addDaysISO(period.to, 1), msd);
+    }
+    return out;
+  }
+
+  /** { from, to } -> "25 okt – 24 nov" (jaartal erbij als from en to in verschillende jaren vallen en withYear). */
+  function formatPeriod(p, withYear) {
+    var a = parseLocalDateTime(p && p.from), b = parseLocalDateTime(p && p.to);
+    if (!a || !b) return '';
+    var left = a.getDate() + ' ' + MONTHS_SHORT[a.getMonth()];
+    var right = b.getDate() + ' ' + MONTHS_SHORT[b.getMonth()];
+    if (withYear) {
+      if (a.getFullYear() !== b.getFullYear()) left += ' ' + a.getFullYear();
+      right += ' ' + b.getFullYear();
+    }
+    return left + ' – ' + right;
+  }
+
   var calc = {
+    savingsPeriodOf: savingsPeriodOf,
+    savingsMonths: savingsMonths,
+    formatPeriod: formatPeriod,
     DAY_MS: DAY_MS,
     periodRange: periodRange,
     activeDays: activeDays,

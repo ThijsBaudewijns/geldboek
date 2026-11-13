@@ -8,7 +8,7 @@
  */
 'use strict';
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 var CACHE_PREFIX = 'geldboek-';
 var CACHE = CACHE_PREFIX + VERSION;
 var FILES = [

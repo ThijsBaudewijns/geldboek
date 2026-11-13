@@ -12,6 +12,8 @@
  * Voorgeschoten (U12): kaart #openstaand (section.card.open-card) boven de lijst zolang er iets openstaat;
  * per persoon .open-person[data-person] met .open-total[data-cents] en posten .open-item[data-expense-id]
  * met knop .open-repaid[data-repay-id] ("Terugbetaald"). Labels in de lijst: .tag-advance (.is-open / .is-repaid).
+ * Spaardoel: kaart #spaardoel (section.card.goal-card) direct onder het saldo zolang settings.savingsGoalCents > 0;
+ * rekenwerk in Geldboek.calc.savingsMonths.
  * In de bewerkmodus van een voorgeschoten uitgave: #edit-repaid-box met #edit-mark-repaid of #edit-undo-repaid.
  */
 (function (root) {
@@ -114,6 +116,90 @@
         items
       ]));
     });
+    return card;
+  }
+
+  // ---- Spaardoel ----
+
+  /** Verschil met teken: "+ € 60,00", "− € 35,00", "€ 0,00". */
+  function diffText(cents) {
+    return signedEuro(cents, cents < 0 ? -1 : cents > 0 ? 1 : 0);
+  }
+
+  /**
+   * Status van de lopende spaarmaand:
+   *  'behaald'  - verschil >= doel (nu al; geldt zolang het saldo niet verder daalt);
+   *  'op-koers' - nog niet, maar wel minstens het deel van het doel dat bij de verstreken dagen hoort;
+   *  'te-gaan'  - daaronder.
+   */
+  function goalStatus(m, now) {
+    if (m.diffCents >= m.goalCents) return 'behaald';
+    var calc = G.calc;
+    var from = calc.parseLocalDateTime(m.from), to = calc.parseLocalDateTime(m.to);
+    var today = calc.parseLocalDateTime(calc.toISODate(now));
+    var total = Math.round((to - from) / calc.DAY_MS) + 1;
+    var elapsed = Math.min(total, Math.max(1, Math.round((today - from) / calc.DAY_MS) + 1));
+    return m.diffCents * total >= m.goalCents * elapsed && m.diffCents > 0 ? 'op-koers' : 'te-gaan';
+  }
+
+  /**
+   * Kaart Spaardoel (#spaardoel), of null zonder spaardoel. Toont de lopende spaarmaand
+   * (#goal-period, #goal-diff[data-cents], #goal-status[data-status], #goal-days) en daaronder
+   * de afgeronde spaarmaanden (.goal-month[data-from][data-achieved="true|false"]), nieuwste eerst.
+   */
+  function renderGoal(settings, entries, now) {
+    var calc = G.calc;
+    var months = calc.savingsMonths(settings, entries, now);
+    if (!months.length) return null;
+    var cur = months[months.length - 1];
+    var goal = cur.goalCents;
+    var status = goalStatus(cur, now);
+    var left = goal - cur.diffCents;
+    var pct = Math.max(0, Math.min(100, Math.round(cur.diffCents * 100 / goal)));
+    var statusText = status === 'behaald'
+      ? 'Behaald' + (cur.diffCents > goal ? ': ' + calc.formatEuro(cur.diffCents - goal) + ' boven je doel' : '')
+      : status === 'op-koers' ? 'Op koers · nog ' + calc.formatEuro(left) + ' te gaan'
+        : 'Nog ' + calc.formatEuro(left) + ' te gaan';
+    var next = calc.parseLocalDateTime(calc.addDaysISO(cur.to, 1));
+    var daysText = cur.daysLeft === 1
+      ? 'Morgen (' + shortDate(calc.toISODate(next)) + ') begint een nieuwe spaarmaand.'
+      : 'Nog ' + cur.daysLeft + ' dagen tot de nieuwe spaarmaand (' + shortDate(calc.toISODate(next)) + ').';
+
+    var card = h('section', { className: 'card goal-card', id: 'spaardoel', 'aria-labelledby': 'spaardoel-title', 'data-status': status }, [
+      h('div', { className: 'goal-head' }, [
+        h('h2', { className: 'card-title', id: 'spaardoel-title', text: 'Spaardoel' }),
+        h('span', { className: 'goal-period', id: 'goal-period', text: calc.formatPeriod(cur) })
+      ]),
+      h('p', { className: 'goal-target', id: 'goal-target', 'data-cents': String(goal),
+        text: 'Doel: ' + calc.formatEuro(goal) + ' meer dan ' + (months.length === 1 ? 'je startsaldo' : 'vorige maand') }),
+      h('div', { className: 'goal-now' }, [
+        h('span', { className: 'stat-title', text: 'Deze spaarmaand' }),
+        h('span', {
+          className: 'goal-diff amount ' + (cur.diffCents < 0 ? 'amount-expense' : cur.diffCents > 0 ? 'amount-income' : ''),
+          id: 'goal-diff', 'data-cents': String(cur.diffCents), text: diffText(cur.diffCents)
+        })
+      ]),
+      h('div', {
+        className: 'goal-bar', role: 'progressbar', 'aria-label': 'Voortgang naar je spaardoel',
+        'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(pct)
+      }, [h('div', { className: 'goal-fill', style: 'width:' + pct + '%' })]),
+      h('p', { className: 'goal-status', id: 'goal-status', 'data-status': status, text: statusText }),
+      h('p', { className: 'hint goal-days', id: 'goal-days', 'data-days': String(cur.daysLeft), text: daysText })
+    ]);
+
+    var done = months.slice(0, -1).reverse().slice(0, 6);
+    if (done.length) {
+      var list = h('ul', { className: 'goal-history', id: 'goal-history', 'aria-label': 'Vorige spaarmaanden' });
+      done.forEach(function (m) {
+        list.appendChild(h('li', { className: 'goal-month', 'data-from': m.from, 'data-achieved': String(m.achieved) }, [
+          h('span', { className: 'goal-month-period', text: calc.formatPeriod(m) }),
+          h('span', { className: 'goal-month-diff amount', 'data-cents': String(m.diffCents), text: diffText(m.diffCents) }),
+          h('span', { className: 'goal-month-result ' + (m.achieved ? 'is-achieved' : 'is-missed'), text: m.achieved ? '✓ behaald' : '✗ niet behaald' })
+        ]));
+      });
+      card.appendChild(h('h3', { className: 'goal-history-title', text: 'Vorige spaarmaanden' }));
+      card.appendChild(list);
+    }
     return card;
   }
 
@@ -246,6 +332,8 @@
     var now = new Date();
     listView.innerHTML = '';
     listView.appendChild(renderSummary(app, entries, now));
+    var goalCard = renderGoal(app.store.getSettings(), entries, now);
+    if (goalCard) listView.appendChild(goalCard);
     if (!entries.length) {
       listView.appendChild(h('p', { className: 'placeholder empty', id: 'overzicht-empty', text: 'Nog niets vastgelegd. Tik op Invoer om je eerste uitgave toe te voegen.' }));
       return;
@@ -370,7 +458,8 @@
     renderRow: renderRow,
     rowLabels: rowLabels,
     signedEuro: signedEuro,
-    dayLabel: dayLabel
+    dayLabel: dayLabel,
+    renderGoal: renderGoal
   };
 
   G.app.register('overzicht', {

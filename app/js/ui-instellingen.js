@@ -2,7 +2,7 @@
  * Geldboek - Instellingen (#instellingen, tandwiel rechtsboven).
  * Het scherm bestaat uit blokken (kaarten), in volgorde van Geldboek.instellingen.blocks:
  *   { id: 'saldo', title, render(app, refresh) -> Element }
- * Ingebouwd: 'saldo' (startsaldo, startdatum, uurloon) en 'categorieen'.
+ * Ingebouwd: 'saldo' (startsaldo, startdatum, uurloon, spaardoel #s-goal, betaaldag #s-month-start) en 'categorieen'.
  * Latere fases voegen een blok toe met Geldboek.instellingen.blocks.push({ id: 'gegevens', title: 'Gegevens', render: fn })
  * vanuit hun eigen script (na dit bestand geladen). Elk blok wordt bij elk tonen opnieuw opgebouwd;
  * refresh() bouwt het hele scherm opnieuw op (bijv. na een wijziging).
@@ -61,11 +61,40 @@
       wageErr
     ]);
 
+    // Spaardoel (integer centen; leeg of 0 = geen spaardoel) en betaaldag (1-28).
+    var goal = h('input', {
+      id: 's-goal', name: 'goal', className: 'input input-money', type: 'text', inputmode: 'decimal', autocomplete: 'off',
+      placeholder: 'Bijv. 200', value: s.savingsGoalCents ? form.centsToInput(s.savingsGoalCents) : '',
+      'aria-describedby': 's-goal-hint s-goal-error'
+    });
+    var goalErr = errEl('s-goal-error');
+    var fGoal = h('div', { className: 'field', 'data-field': 's-goal' }, [
+      h('label', { className: 'label', 'for': 's-goal', text: 'Spaardoel per maand' }),
+      h('div', { className: 'amount-wrap amount-wrap-small' }, [h('span', { className: 'currency', 'aria-hidden': 'true', text: '€' }), goal]),
+      hint('s-goal-hint', 'Zoveel moet je saldo elke spaarmaand hoger eindigen dan de maand ervoor. Leeg of 0 = geen spaardoel.'),
+      goalErr
+    ]);
+
+    var day = h('input', {
+      id: 's-month-start', name: 'monthStartDay', className: 'input input-day', type: 'text', inputmode: 'numeric',
+      pattern: '[0-9]*', autocomplete: 'off', maxlength: '2', value: String(s.monthStartDay || 25),
+      'aria-describedby': 's-month-start-hint s-month-start-error'
+    });
+    var dayErr = errEl('s-month-start-error');
+    var fDay = h('div', { className: 'field', 'data-field': 's-month-start' }, [
+      h('label', { className: 'label', 'for': 's-month-start', text: 'Betaaldag (1-28)' }),
+      day,
+      hint('s-month-start-hint', 'De dag waarop je salaris binnenkomt; een spaarmaand loopt van deze dag tot de dag ervoor in de volgende maand. Kies 1 voor gewone kalendermaanden.'),
+      dayErr
+    ]);
+
     date.addEventListener('input', function () { setFieldError(fDate, dateErr, null); });
     wage.addEventListener('input', function () { setFieldError(fWage, wageErr, null); });
+    goal.addEventListener('input', function () { setFieldError(fGoal, goalErr, null); });
+    day.addEventListener('input', function () { setFieldError(fDay, dayErr, null); });
 
     var save = h('button', { type: 'submit', className: 'btn btn-primary btn-block', id: 's-save', text: 'Opslaan' });
-    var f = h('form', { className: 'form', id: 'settings-form', novalidate: true, autocomplete: 'off' }, [balance.el, fDate, fWage, save]);
+    var f = h('form', { className: 'form', id: 'settings-form', novalidate: true, autocomplete: 'off' }, [balance.el, fDate, fWage, fGoal, fDay, save]);
 
     f.addEventListener('submit', function (ev) {
       ev.preventDefault();
@@ -85,12 +114,19 @@
         wageCents = calc.parseAmount(wage.value);
         if (wageCents === null) { setFieldError(fWage, wageErr, 'Dit is geen geldig uurloon. Gebruik bijvoorbeeld 15,00, of laat het leeg.'); ok = false; }
       }
+      var goalCents = 0;
+      if (goal.value.trim() !== '' && !/^\s*0+([.,]0*)?\s*$/.test(goal.value)) {
+        goalCents = calc.parseAmount(goal.value);
+        if (goalCents === null) { setFieldError(fGoal, goalErr, 'Dit is geen geldig bedrag. Gebruik bijvoorbeeld 200, of laat het leeg.'); ok = false; }
+      }
+      var dayNum = /^\s*\d{1,2}\s*$/.test(day.value) ? parseInt(day.value, 10) : NaN;
+      if (!(dayNum >= 1 && dayNum <= 28)) { setFieldError(fDay, dayErr, 'Kies een dag van 1 tot en met 28.'); ok = false; }
       if (!ok) {
         var bad = f.querySelector('.invalid input');
         if (bad) bad.focus();
         return;
       }
-      app.store.updateSettings({ startBalanceCents: start, startDate: date.value, hourlyWageCents: wageCents });
+      app.store.updateSettings({ startBalanceCents: start, startDate: date.value, hourlyWageCents: wageCents, savingsGoalCents: goalCents || 0, monthStartDay: dayNum });
       if (app.store.lastError) app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
       else app.toast('Instellingen opgeslagen');
     });
@@ -163,7 +199,7 @@
   }
 
   var blocks = [
-    { id: 'saldo', title: 'Saldo en uurloon', render: renderSaldo },
+    { id: 'saldo', title: 'Saldo, uurloon en spaardoel', render: renderSaldo },
     { id: 'categorieen', title: 'Categorieën', render: renderCategories }
   ];
 

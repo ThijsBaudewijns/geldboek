@@ -245,7 +245,7 @@ test.describe('PWA', () => {
     test.skip(!hasSW, 'Deze Playwright-browser heeft geen service workers');
     await page.evaluate(() => navigator.serviceWorker.ready);
     await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), { timeout: 10000 }).toBe(true);
-    expect(await page.evaluate(() => caches.keys())).toContain('geldboek-v2');
+    expect(await page.evaluate(() => caches.keys())).toContain('geldboek-v3');
     expect(await page.evaluate(async () => !!(await caches.match('./js/app.js')))).toBe(true);
     await context.setOffline(true);
     await page.reload();

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Geldboek-icoon: bron voor de PNG's (tests/tools/icons.js). Vlak en vol (geen transparantie), iOS rondt zelf af. -->
+  <rect width="512" height="512" fill="#1f6f5c"/>
+  <!-- open boek, binnen de veilige zone (80%) voor maskable -->
+  <path d="M256 150c-38-26-92-34-146-28v236c54-6 108 2 146 28z" fill="#f6f5f2"/>
+  <path d="M256 150c38-26 92-34 146-28v236c-54-6-108 2-146 28z" fill="#dcefe8"/>
+  <path d="M256 150v236" stroke="#1f6f5c" stroke-width="6"/>
+  <!-- euroteken op de rechterpagina -->
+  <g fill="none" stroke="#1f6f5c" stroke-width="16" stroke-linecap="round">
+    <path d="M372 206a52 52 0 1 0 0 76"/>
+    <path d="M286 232h66M286 258h60"/>
+  </g>
+  <!-- regels op de linkerpagina -->
+  <g stroke="#9fc9bb" stroke-width="10" stroke-linecap="round">
+    <path d="M146 196h76M146 230h76M146 264h76M146 298h52"/>
+  </g>
+</svg>

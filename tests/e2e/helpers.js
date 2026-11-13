@@ -19,12 +19,18 @@ async function setStandalone(page) {
  * Zet data in localStorage['geldboek.v1'] vóór de app laadt, maar alleen als de sleutel nog leeg is
  * (zodat een reload binnen een test de data van die test niet overschrijft).
  */
-async function seedData(page, data) {
-  await page.addInitScript(({ key, json }) => {
+async function seedData(page, data, once) {
+  await page.addInitScript(({ key, json, once }) => {
     try {
+      if (once) {
+        // Maar één keer per tabblad seeden (vlag in sessionStorage blijft staan bij herladen),
+        // zodat een test localStorage kan leegmaken en herladen zonder dat de seed terugkomt.
+        if (sessionStorage.getItem('geldboek.test.seeded') === '1') return;
+        sessionStorage.setItem('geldboek.test.seeded', '1');
+      }
       if (!localStorage.getItem(key)) localStorage.setItem(key, json);
     } catch (e) { /* negeren */ }
-  }, { key: STORAGE_KEY, json: JSON.stringify(data) });
+  }, { key: STORAGE_KEY, json: JSON.stringify(data), once: !!once });
 }
 
 /**
@@ -36,6 +42,7 @@ async function seedData(page, data) {
  * opts.settings: extra settings om te seeden (bijv. { hourlyWageCents: 1500, startBalanceCents: 10000 }).
  * opts.entries: entries om te seeden (worden bij het laden genormaliseerd).
  * opts.data: volledige geldboek.v1-data om te seeden (bijv. een fixture); gaat vóór settings/entries.
+ * opts.seedOnce: seed alleen bij de eerste paginalading van dit tabblad (niet opnieuw na leegmaken + herladen).
  */
 async function openApp(page, opts = {}) {
   if (opts.standalone !== false) await setStandalone(page);
@@ -48,7 +55,7 @@ async function openApp(page, opts = {}) {
       entries: opts.entries || []
     };
   }
-  if (data) await seedData(page, data);
+  if (data) await seedData(page, data, opts.seedOnce);
   const base = opts.http ? APP_HTTP_URL : APP_FILE_URL;
   await page.goto(base + (opts.hash ? '#' + opts.hash : ''));
   await page.waitForFunction(() => window.Geldboek && window.Geldboek.app && window.Geldboek.app.store);

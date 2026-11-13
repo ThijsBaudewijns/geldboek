@@ -71,7 +71,8 @@
       hourlyWageCents: null,
       categories: DEFAULT_CATEGORIES.slice(),
       lastExportAt: null,
-      onboarded: false
+      onboarded: false,
+      backupReminderDismissedOn: null // "YYYY-MM-DD": back-upherinnering die dag weggeklikt (fase 8)
     };
   }
 
@@ -90,6 +91,8 @@
       : d.categories;
     out.lastExportAt = strOrNull(out.lastExportAt);
     out.onboarded = out.onboarded === true;
+    out.backupReminderDismissedOn = typeof out.backupReminderDismissedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(out.backupReminderDismissedOn)
+      ? out.backupReminderDismissedOn : null;
     return out;
   }
 
@@ -190,6 +193,16 @@
       }
       data = normalize(parsed, nowFn());
       return clone(data);
+    };
+
+    /** true als er nu (nog) geldboek-data in de opslag staat (bijv. om te beslissen of herstel uit IndexedDB nodig is). */
+    store.hasStoredData = function () {
+      try {
+        var raw = storage ? storage.getItem(STORAGE_KEY) : null;
+        return typeof raw === 'string' && raw !== '';
+      } catch (err) {
+        return false;
+      }
     };
 
     var listeners = [];
@@ -471,6 +484,118 @@
     return store;
   }
 
+  // ---- opslagvangnet: spiegel naar IndexedDB (U23) ----
+  // Aparte laag naast createStore, zodat de unit-tests met nep-opslag niets van IndexedDB merken.
+  var IDB_NAME = 'geldboek';
+  var IDB_STORE = 'data';
+  var IDB_KEY = 'v1';
+
+  /**
+   * createIdbMirror(indexedDB) -> { write(data) -> Promise<bool>, read() -> Promise<data|null> } of null
+   * als er geen (bruikbare) IndexedDB is. Fouten worden nooit gegooid: write geeft dan false, read null.
+   * Data wordt als JSON-tekst bewaard in database 'geldboek', store 'data', sleutel 'v1'.
+   */
+  function createIdbMirror(idb) {
+    if (!idb || typeof idb.open !== 'function' || typeof Promise === 'undefined') return null;
+    var dbPromise = null;
+    var queue = Promise.resolve(true);
+
+    function openDb() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise(function (resolve, reject) {
+        var req;
+        try {
+          req = idb.open(IDB_NAME, 1);
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        req.onupgradeneeded = function () {
+          var db = req.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+        };
+        req.onsuccess = function () {
+          var db = req.result;
+          db.onversionchange = function () { try { db.close(); } catch (e) { /* negeren */ } dbPromise = null; };
+          resolve(db);
+        };
+        req.onerror = function () { reject(req.error || new Error('IndexedDB openen mislukt')); };
+        req.onblocked = function () { reject(new Error('IndexedDB geblokkeerd')); };
+      });
+      dbPromise.then(null, function () { dbPromise = null; });
+      return dbPromise;
+    }
+
+    function run(mode, fn) {
+      return openDb().then(function (db) {
+        return new Promise(function (resolve, reject) {
+          var tx = db.transaction(IDB_STORE, mode);
+          var result;
+          var req = fn(tx.objectStore(IDB_STORE));
+          if (req) req.onsuccess = function () { result = req.result; };
+          tx.oncomplete = function () { resolve(result); };
+          tx.onerror = function () { reject(tx.error || new Error('IndexedDB-fout')); };
+          tx.onabort = function () { reject(tx.error || new Error('IndexedDB afgebroken')); };
+        });
+      });
+    }
+
+    return {
+      /** Schrijft de volledige data weg (in volgorde van aanroepen). */
+      write: function (data) {
+        var json;
+        try {
+          json = JSON.stringify(data);
+        } catch (err) {
+          return Promise.resolve(false);
+        }
+        queue = queue.then(function () {
+          return run('readwrite', function (os) { return os.put(json, IDB_KEY); }).then(
+            function () { return true; },
+            function () { return false; }
+          );
+        });
+        return queue;
+      },
+      /** Leest de gespiegelde data (object) of null. Wacht op lopende writes. */
+      read: function () {
+        return queue.then(function () {
+          return run('readonly', function (os) { return os.get(IDB_KEY); });
+        }).then(function (raw) {
+          if (typeof raw !== 'string' || raw === '') return null;
+          var parsed = JSON.parse(raw);
+          return isObj(parsed) ? parsed : null;
+        }).then(null, function () { return null; });
+      }
+    };
+  }
+
+  /**
+   * Koppelt een spiegel aan een store: elke geslaagde save gaat ook naar de spiegel.
+   * Staat er al data in de opslag, dan wordt die meteen gespiegeld.
+   * Is de opslag leeg maar de spiegel niet, dan wordt de store daaruit hersteld (async).
+   * Geeft een Promise<boolean>: true als er hersteld is.
+   */
+  function attachMirror(store, mirror) {
+    if (!store || !mirror) return typeof Promise !== 'undefined' ? Promise.resolve(false) : null;
+    store.onChange(function (data) { mirror.write(data); });
+    if (store.hasStoredData()) {
+      mirror.write(store.getData());
+      return Promise.resolve(false);
+    }
+    return mirror.read().then(function (saved) {
+      // Intussen al iets opgeslagen (gebruiker was sneller)? Dan niet overschrijven.
+      if (!saved || store.hasStoredData()) return false;
+      if (!Array.isArray(saved.entries)) return false;
+      try {
+        store.replaceAll(saved);
+      } catch (err) {
+        return false;
+      }
+      return true;
+    });
+  }
+
   var api = {
     STORAGE_KEY: STORAGE_KEY,
     VERSION: VERSION,
@@ -483,7 +608,12 @@
     defaultData: defaultData,
     normalize: normalize,
     normalizeEntry: normalizeEntry,
-    generateId: generateId
+    generateId: generateId,
+    createIdbMirror: createIdbMirror,
+    attachMirror: attachMirror,
+    IDB_NAME: IDB_NAME,
+    IDB_STORE: IDB_STORE,
+    IDB_KEY: IDB_KEY
   };
 
   root.Geldboek = root.Geldboek || {};

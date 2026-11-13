@@ -12,6 +12,16 @@
   <meta name="apple-mobile-web-app-title" content="Geldboek">
   <meta name="format-detection" content="telephone=no">
   <title>Geldboek</title>
+  <link rel="manifest" id="manifest-link" data-href="manifest.webmanifest">
+  <script>
+    /* Manifest alleen via http(s) (U3): WebKit weigert het vanaf file:// (origin null) met een console-fout. */
+    (function () {
+      var l = document.getElementById('manifest-link');
+      if (l && (location.protocol === 'http:' || location.protocol === 'https:')) l.setAttribute('href', l.getAttribute('data-href'));
+    })();
+  </script>
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -35,6 +45,7 @@
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <button type="button" class="update-bar" id="update-bar" hidden>Nieuwe versie, tik om te verversen</button>
 
   <nav class="tabbar" aria-label="Tabbladen">
     <a class="tab" href="#invoer" data-route="invoer">
@@ -58,12 +69,14 @@
 
   <script src="js/store.js"></script>
   <script src="js/calc.js"></script>
+  <script src="js/backup.js"></script>
   <script src="js/app.js"></script>
   <script src="js/ui-invoer.js"></script>
   <script src="js/ui-overzicht.js"></script>
   <script src="js/ui-instellingen.js"></script>
   <script src="js/ui-terugkijken.js"></script>
   <script src="js/ui-reflectie.js"></script>
+  <script src="js/ui-gegevens.js"></script>
   <script src="js/ui-welkom.js"></script>
 </body>
 </html>

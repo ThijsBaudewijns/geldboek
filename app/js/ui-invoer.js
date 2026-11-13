@@ -600,6 +600,8 @@
         form = fresh;
       }
       renderQuickPicks(app);
+      // Back-upherinnering (U18, fase 8) bovenaan, als ui-gegevens.js geladen is.
+      if (G.gegevens && typeof G.gegevens.renderReminder === 'function') G.gegevens.renderReminder(el, app);
       setMode(mode);
     }
   });

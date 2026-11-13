@@ -19,6 +19,7 @@
   var current = null;
   var toastTimer = null;
   var started = false;
+  var updateRequested = false; // true na tik op "Nieuwe versie" (dan herladen bij controllerchange)
 
   function safeLocalStorage() {
     try {
@@ -235,10 +236,109 @@
       return n;
     },
 
+    /**
+     * Tekent alles opnieuw na een wijziging van buitenaf (bijv. herstel uit IndexedDB):
+     * gate opnieuw bepalen, anders de huidige route opnieuw tonen.
+     */
+    rerender: function () {
+      app.updateReviewBadge();
+      var g = app.gateFor();
+      if (g) { app.showGate(g); return; }
+      if (gate) {
+        gate = null;
+        document.body.classList.remove('gated');
+        document.body.removeAttribute('data-gate');
+        Object.keys(GATE_IDS).forEach(function (k) {
+          var el = document.getElementById(GATE_IDS[k]);
+          if (el) { el.hidden = true; el.innerHTML = ''; }
+        });
+      }
+      app.render(routeFromHash());
+    },
+
+    /** Balk "Nieuwe versie, tik om te verversen" (U26). worker = de wachtende service worker. */
+    showUpdateBar: function (worker) {
+      var bar = document.getElementById('update-bar');
+      if (!bar) return;
+      bar.hidden = false;
+      bar.onclick = function () {
+        updateRequested = true;
+        bar.disabled = true;
+        bar.textContent = 'Bezig met verversen…';
+        try {
+          if (worker && typeof worker.postMessage === 'function') worker.postMessage({ type: 'skipWaiting' });
+          else root.location.reload();
+        } catch (err) {
+          root.location.reload();
+        }
+      };
+    },
+
+    /** Service worker registreren (alleen via http/https, U3) en updates melden (U26). */
+    registerServiceWorker: function () {
+      var nav = root.navigator;
+      var proto = root.location.protocol;
+      if (proto !== 'http:' && proto !== 'https:') return false;
+      if (!nav || !('serviceWorker' in nav) || !nav.serviceWorker || typeof nav.serviceWorker.register !== 'function') return false;
+      var sw = nav.serviceWorker;
+      var refreshing = false;
+      sw.addEventListener('controllerchange', function () {
+        // Alleen herladen als de gebruiker op de balk tikte (niet bij de allereerste installatie).
+        if (!updateRequested || refreshing) return;
+        refreshing = true;
+        root.location.reload();
+      });
+      try {
+        sw.register('sw.js').then(function (reg) {
+          function watch(worker) {
+            if (!worker) return;
+            worker.addEventListener('statechange', function () {
+              if (worker.state === 'installed' && sw.controller) app.showUpdateBar(worker);
+            });
+          }
+          if (reg.waiting && sw.controller) app.showUpdateBar(reg.waiting);
+          watch(reg.installing);
+          reg.addEventListener('updatefound', function () { watch(reg.installing); });
+          // Een beginscherm-app blijft lang open: bij terugkomen even kijken of er een nieuwe versie is.
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible' && typeof reg.update === 'function') {
+              try { reg.update().then(null, function () {}); } catch (e) { /* negeren */ }
+            }
+          });
+        }).then(null, function () { /* registreren mislukt: app werkt gewoon zonder */ });
+      } catch (err) {
+        return false;
+      }
+      return true;
+    },
+
+    /** Vraagt de browser om de opslag niet op te ruimen (U23, Safari 17+). */
+    requestPersistentStorage: function () {
+      var st = root.navigator && root.navigator.storage;
+      if (!st || typeof st.persist !== 'function') return;
+      try {
+        var p = st.persist();
+        if (p && typeof p.then === 'function') p.then(null, function () {});
+      } catch (err) { /* negeren */ }
+    },
+
     start: function () {
       if (started) return;
       started = true;
       app.store = G.store.createStore(safeLocalStorage());
+      app.requestPersistentStorage();
+      // Opslagvangnet (U23): elke opslag ook naar IndexedDB; lege localStorage -> herstel daaruit.
+      var idb = null;
+      try { idb = root.indexedDB || null; } catch (err) { idb = null; }
+      var mirror = G.store.createIdbMirror(idb);
+      if (mirror) {
+        G.store.attachMirror(app.store, mirror).then(function (restored) {
+          if (!restored) return;
+          app.rerender();
+          app.toast('Je gegevens zijn hersteld uit de reservekopie op dit toestel.', 5000);
+        }, function () {});
+      }
+      app.registerServiceWorker();
       // Badge bij opstarten, na elke opslag en bij elke tabwissel (er kunnen intussen uitgaven 7 dagen oud zijn geworden).
       app.store.onChange(function () { app.updateReviewBadge(); });
       app.updateReviewBadge();

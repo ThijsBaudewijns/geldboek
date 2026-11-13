@@ -27,7 +27,7 @@ test('load: lege opslag -> standaarddata volgens datamodel', () => {
   const d = store.load();
   assert.deepEqual(d, {
     version: 1,
-    settings: { startBalanceCents: 0, startDate: '2026-11-13', hourlyWageCents: null, categories: S.DEFAULT_CATEGORIES, lastExportAt: null, onboarded: false },
+    settings: { startBalanceCents: 0, startDate: '2026-11-13', hourlyWageCents: null, categories: S.DEFAULT_CATEGORIES, lastExportAt: null, onboarded: false, backupReminderDismissedOn: null },
     entries: []
   });
 });
@@ -362,4 +362,81 @@ test('onChange: geen melding als opslaan mislukt', () => {
   store.addEntry(expense());
   assert.equal(n, 0);
   assert.ok(store.lastError);
+});
+
+// ---- fase 8: opslagvangnet (IndexedDB-spiegel als aparte laag) ----
+
+function fakeMirror(initial) {
+  const m = { saved: initial === undefined ? null : initial, writes: [] };
+  m.write = (d) => { m.writes.push(d); m.saved = JSON.parse(JSON.stringify(d)); return Promise.resolve(true); };
+  m.read = () => Promise.resolve(m.saved ? JSON.parse(JSON.stringify(m.saved)) : null);
+  return m;
+}
+
+test('createIdbMirror: zonder (bruikbare) IndexedDB -> null', () => {
+  assert.equal(S.createIdbMirror(null), null);
+  assert.equal(S.createIdbMirror(undefined), null);
+  assert.equal(S.createIdbMirror({}), null);
+});
+
+test('settings: backupReminderDismissedOn standaard null, ongeldige waarde -> null', () => {
+  const ok = S.normalize({ settings: { backupReminderDismissedOn: '2026-11-13' } }).settings;
+  assert.equal(ok.backupReminderDismissedOn, '2026-11-13');
+  assert.equal(S.normalize({ settings: { backupReminderDismissedOn: 'gisteren' } }).settings.backupReminderDismissedOn, null);
+});
+
+test('hasStoredData: false bij lege opslag, true na save', () => {
+  const st = fakeStorage();
+  const store = S.createStore(st, { now: fixedNow });
+  assert.equal(store.hasStoredData(), false);
+  store.addEntry(expense());
+  assert.equal(store.hasStoredData(), true);
+  assert.equal(S.createStore(null).hasStoredData(), false);
+});
+
+test('attachMirror: bestaande data wordt meteen gespiegeld, daarna elke save', async () => {
+  const st = fakeStorage();
+  S.createStore(st, { now: fixedNow }).addEntry(expense());
+  const store = S.createStore(st, { now: fixedNow });
+  const mirror = fakeMirror();
+  assert.equal(await S.attachMirror(store, mirror), false);
+  assert.equal(mirror.writes.length, 1);
+  assert.equal(mirror.saved.entries.length, 1);
+  store.addEntry(expense({ what: 'Koffie' }));
+  assert.equal(mirror.writes.length, 2);
+  assert.equal(mirror.saved.entries.length, 2);
+});
+
+test('attachMirror: lege opslag + gevulde spiegel -> hersteld, en weer in de opslag gezet', async () => {
+  const filled = S.createStore(fakeStorage(), { now: fixedNow });
+  filled.updateSettings({ onboarded: true, startBalanceCents: 5000 });
+  filled.addEntry(expense());
+  const st = fakeStorage();
+  const store = S.createStore(st, { now: fixedNow });
+  const mirror = fakeMirror(filled.getData());
+  assert.equal(await S.attachMirror(store, mirror), true);
+  assert.equal(store.listEntries().length, 1);
+  assert.equal(store.getSettings().startBalanceCents, 5000);
+  assert.equal(JSON.parse(st.map['geldboek.v1']).entries.length, 1);
+});
+
+test('attachMirror: lege opslag + lege spiegel -> niets herstellen, niets wegschrijven', async () => {
+  const st = fakeStorage();
+  const store = S.createStore(st, { now: fixedNow });
+  const mirror = fakeMirror(null);
+  assert.equal(await S.attachMirror(store, mirror), false);
+  assert.equal(mirror.writes.length, 0);
+  assert.equal(st.map['geldboek.v1'], undefined);
+});
+
+test('attachMirror: gebruiker sloeg al iets op vóór het lezen klaar was -> niet overschrijven', async () => {
+  const st = fakeStorage();
+  const store = S.createStore(st, { now: fixedNow });
+  const old = S.createStore(null, { now: fixedNow });
+  old.addEntry(expense({ what: 'Oud' }));
+  const mirror = fakeMirror(old.getData());
+  const p = S.attachMirror(store, mirror);
+  store.addEntry(expense({ what: 'Nieuw' }));
+  assert.equal(await p, false);
+  assert.deepEqual(store.listEntries().map((e) => e.what), ['Nieuw']);
 });

@@ -6,5 +6,8 @@
   "scripts": {
     "test": "node --test \"tests/unit/*.test.js\"",
     "e2e": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0"
   }
 }

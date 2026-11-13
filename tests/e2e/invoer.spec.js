@@ -91,14 +91,20 @@ test.describe('Invoer uitgave', () => {
     await expect(page.locator('#f-note')).toBeFocused();
   });
 
-  test('tabbalk en hash-routing; nog niet gebouwde tabbladen tonen "binnenkort"', async ({ page }) => {
+  test('tabbalk en hash-routing; elk tabblad toont zijn eigen sectie', async ({ page }) => {
     await openApp(page);
     await expect(page.locator('.tabbar .tab')).toHaveText(['Invoer', 'Overzicht', 'Terugkijken', 'Reflectie']);
     await page.locator('.tab[data-route="overzicht"]').click();
     await expect(page).toHaveURL(/#overzicht$/);
     await expect(page.locator('#view-overzicht')).toBeVisible();
-    await page.locator('.tab[data-route="reflectie"]').click();
-    await expect(page.locator('#view-reflectie')).toContainText('binnenkort');
+    for (const route of ['invoer', 'overzicht', 'terugkijken', 'reflectie']) {
+      await page.locator(`.tab[data-route="${route}"]`).click();
+      await expect(page).toHaveURL(new RegExp('#' + route + '$'));
+      await expect(page.locator(`#view-${route}`)).toBeVisible();
+      await expect(page.locator(`.tab[data-route="${route}"]`)).toHaveAttribute('aria-current', 'page');
+      await expect(page.locator('[data-view]:not([hidden])')).toHaveCount(1);
+      await expect(page.locator(`#view-${route}`)).not.toContainText('binnenkort');
+    }
     await expect(page.locator('#view-invoer')).toBeHidden();
     await page.locator('#settings-link').click();
     await expect(page.locator('#view-instellingen')).toBeVisible();

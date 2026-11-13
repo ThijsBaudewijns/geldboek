@@ -456,8 +456,228 @@
     return out;
   }
 
+  // ---------- reflectie (fase 7) ----------
+
+  function addDaysISO(iso, n) {
+    var d = parseLocalDateTime(iso);
+    if (!d) return null;
+    return toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+  }
+
+  function isScore(v) {
+    return typeof v === 'number' && v >= 1 && v <= 5;
+  }
+
+  function byDatetimeAsc(a, b) {
+    var x = String(a.datetime || ''), y = String(b.datetime || '');
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+
+  /**
+   * Periode voor de reflectie, als { from, to } met "YYYY-MM-DD" (beide inclusief).
+   * kind: 'all' (vanaf settings.startDate, geen einde), 'week' (de week van now, maandag t/m zondag),
+   * 'lastweek' (de week daarvoor).
+   */
+  function periodRange(kind, settings, now) {
+    var n = toDate(now);
+    if (kind === 'week' || kind === 'lastweek') {
+      var ws = weekStartOf(n);
+      if (kind === 'lastweek') ws = addDaysISO(ws, -7);
+      return { from: ws, to: addDaysISO(ws, 6) };
+    }
+    var s = settings || {};
+    return { from: typeof s.startDate === 'string' && s.startDate ? s.startDate.slice(0, 10) : null, to: null };
+  }
+
+  /** Aantal verschillende kalenderdagen met minstens één registratie (uitgave of inkomst). */
+  function activeDays(entries) {
+    var seen = {};
+    var n = 0;
+    (entries || []).forEach(function (e) {
+      if (!(isExpense(e) || isIncome(e)) || typeof e.datetime !== 'string') return;
+      var day = e.datetime.slice(0, 10);
+      if (!seen[day]) { seen[day] = true; n++; }
+    });
+    return n;
+  }
+
+  /**
+   * Gemiddelde van een score-veld ('worth' of 'worthLater') over uitgaven met een geldige score (1-5).
+   * -> { average (Number, één decimaal) | null, count }.
+   */
+  function averageScore(entries, field) {
+    var sum = 0, count = 0;
+    (entries || []).forEach(function (e) {
+      if (!isExpense(e) || !isScore(e[field])) return;
+      sum += e[field];
+      count++;
+    });
+    return { average: count ? Math.round((sum / count) * 10) / 10 : null, count: count };
+  }
+
+  /**
+   * "Minder waard dan gedacht": uitgaven met worthLater < worth.
+   * Grootste daling eerst, dan hoogste bedrag, dan oudste.
+   */
+  function lessWorthThanThought(entries) {
+    return (entries || []).filter(function (e) {
+      return isExpense(e) && isScore(e.worth) && isScore(e.worthLater) && e.worthLater < e.worth;
+    }).sort(function (a, b) {
+      var da = a.worth - a.worthLater, db = b.worth - b.worthLater;
+      if (db !== da) return db - da;
+      if (cents(b) !== cents(a)) return cents(b) - cents(a);
+      return byDatetimeAsc(a, b);
+    });
+  }
+
+  /** Laatste oordeel over een uitgave: de terugkijkscore als die er is, anders de eerste score; anders null. */
+  function finalScore(e) {
+    if (isScore(e && e.worthLater)) return e.worthLater;
+    if (isScore(e && e.worth)) return e.worth;
+    return null;
+  }
+
+  /**
+   * "Laagst gescoord": uitgaven met een score, op laatste oordeel (finalScore) oplopend,
+   * bij gelijke score het hoogste bedrag eerst, dan oudste. Standaard de eerste 5.
+   */
+  function lowestScored(entries, limit) {
+    var max = typeof limit === 'number' ? limit : 5;
+    return (entries || []).filter(function (e) {
+      return isExpense(e) && finalScore(e) !== null;
+    }).sort(function (a, b) {
+      var sa = finalScore(a), sb = finalScore(b);
+      if (sa !== sb) return sa - sb;
+      if (cents(b) !== cents(a)) return cents(b) - cents(a);
+      return byDatetimeAsc(a, b);
+    }).slice(0, max);
+  }
+
+  /**
+   * Voegt aan groupBy-uitkomsten een aandeel toe: [{ key, totalCents, count, percent }] (percent = geheel getal,
+   * afgerond, van het totaal van de lijst). Lege lijst of totaal 0 -> percent 0.
+   */
+  function withShares(groups) {
+    var total = 0;
+    (groups || []).forEach(function (g) { total += g.totalCents; });
+    return (groups || []).map(function (g) {
+      return { key: g.key, totalCents: g.totalCents, count: g.count, percent: total > 0 ? Math.round((g.totalCents / total) * 100) : 0 };
+    });
+  }
+
+  /**
+   * Uitgaven per week voor een grafiek: aaneengesloten weken (maandag) van weekStartOf(from) t/m weekStartOf(to),
+   * lege weken met 0. -> [{ weekStart, expenseCents, ownExpenseCents, incomeCents, count }].
+   */
+  function weekSeries(entries, from, to) {
+    var known = {};
+    byWeek(entries).forEach(function (w) { known[w.weekStart] = w; });
+    var a = parseLocalDateTime(from), b = parseLocalDateTime(to);
+    if (!a || !b) return byWeek(entries);
+    var ws = weekStartOf(a), end = weekStartOf(b);
+    var out = [];
+    var guard = 0;
+    while (ws <= end && guard < 520) {
+      out.push(known[ws] || { weekStart: ws, expenseCents: 0, ownExpenseCents: 0, incomeCents: 0, count: 0 });
+      ws = addDaysISO(ws, 7);
+      guard++;
+    }
+    return out;
+  }
+
+  /**
+   * Samenvatting voor de reflectiepagina over range { from, to } ("YYYY-MM-DD", inclusief; to null = geen einde).
+   * Entries vóór settings.startDate tellen nooit mee (net als het saldo, U11); from wordt daarop afgekapt.
+   * range.now (optioneel, Date/string): bij to null lopen de weken in de grafiek door tot die datum.
+   *
+   * Keuze: verdelingen (categorie, vast/variabel, nodig/wil/impuls, stemming), weken-grafiekwaarde,
+   * waard-scores en uren werk gaan over EIGEN uitgaven (zonder advanceFor, U12); voorgeschoten bedragen
+   * zijn niet voor jezelf. count en activeDays tellen alle registraties (uitgaven en inkomsten).
+   *
+   * -> { from, to, startBalanceCents, openingCents, closingCents, balanceCents, incomeCents, expenseCents,
+   *      ownExpenseCents, advancedCents, repaymentCents, count, activeDays, hoursOfWork (Number|null),
+   *      weeks, byCategory, byFixed, byNeed, byMood (met percent), worth, worthLater ({average,count}),
+   *      lessWorth, lowest }
+   */
+  function reflection(settings, entries, range) {
+    var s = settings || {};
+    var r = range || {};
+    var startDate = typeof s.startDate === 'string' && s.startDate ? s.startDate.slice(0, 10) : null;
+    var from = r.from ? String(r.from).slice(0, 10) : null;
+    if (startDate && (!from || from < startDate)) from = startDate;
+    var to = r.to ? String(r.to).slice(0, 10) : null;
+    var all = entries || [];
+
+    var inPeriod = all.filter(function (e) { return (isExpense(e) || isIncome(e)) && inRange(e, from, to); });
+    var own = inPeriod.filter(isOwnExpense);
+    var t = totals(inPeriod);
+
+    // Saldo aan het begin van de periode: startsaldo + alles vanaf startDate tot from.
+    var startBalance = typeof s.startBalanceCents === 'number' && isFinite(s.startBalanceCents) ? Math.round(s.startBalanceCents) : 0;
+    var opening = startBalance;
+    if (from) {
+      all.forEach(function (e) {
+        if (!inRange(e, startDate, null)) return;
+        if (typeof e.datetime !== 'string' || e.datetime.slice(0, 10) >= from) return;
+        if (isIncome(e)) opening += cents(e);
+        else if (isExpense(e)) opening -= cents(e);
+      });
+    }
+
+    // Weken voor de grafiek.
+    var weekFrom = from, weekTo = to;
+    if (!weekFrom || !weekTo) {
+      var sorted = inPeriod.slice().sort(byDatetimeAsc);
+      if (!weekFrom && sorted.length) weekFrom = sorted[0].datetime.slice(0, 10);
+      if (!weekTo) {
+        weekTo = sorted.length ? sorted[sorted.length - 1].datetime.slice(0, 10) : weekFrom;
+        if (r.now) {
+          var nowISO = toISODate(toDate(r.now));
+          if (!weekTo || nowISO > weekTo) weekTo = nowISO;
+        }
+      }
+    }
+    var weeks = weekFrom && weekTo && weekFrom <= weekTo ? weekSeries(inPeriod, weekFrom, weekTo) : byWeek(inPeriod);
+
+    return {
+      from: from,
+      to: to,
+      startBalanceCents: startBalance,
+      openingCents: opening,
+      closingCents: opening + t.incomeCents - t.expenseCents,
+      balanceCents: balance(s, all),
+      incomeCents: t.incomeCents,
+      expenseCents: t.expenseCents,
+      ownExpenseCents: t.ownExpenseCents,
+      advancedCents: t.advancedCents,
+      repaymentCents: t.repaymentCents,
+      count: t.count,
+      activeDays: activeDays(inPeriod),
+      hoursOfWork: hoursOfWork(t.ownExpenseCents, s.hourlyWageCents),
+      weeks: weeks,
+      byCategory: withShares(groupBy(own, 'category')),
+      byFixed: withShares(groupBy(own, 'fixed')),
+      byNeed: withShares(groupBy(own, 'need')),
+      byMood: withShares(groupBy(own, 'mood')),
+      worth: averageScore(own, 'worth'),
+      worthLater: averageScore(own, 'worthLater'),
+      lessWorth: lessWorthThanThought(own),
+      lowest: lowestScored(own, 5)
+    };
+  }
+
   var calc = {
     DAY_MS: DAY_MS,
+    periodRange: periodRange,
+    activeDays: activeDays,
+    averageScore: averageScore,
+    lessWorthThanThought: lessWorthThanThought,
+    finalScore: finalScore,
+    lowestScored: lowestScored,
+    withShares: withShares,
+    weekSeries: weekSeries,
+    reflection: reflection,
+    addDaysISO: addDaysISO,
     parseAmount: parseAmount,
     parseSignedAmount: parseSignedAmount,
     parseHours: parseHours,

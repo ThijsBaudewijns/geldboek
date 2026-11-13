@@ -282,3 +282,137 @@ test('hoursLabel: "≈ 3,0 uur werk", zonder uurloon null', () => {
   assert.equal(calc.hoursLabel(4500, null), null);
   assert.equal(calc.hoursLabel(4500, 0), null);
 });
+
+// ---------- reflectie (fase 7) ----------
+test('periodRange: hele periode vanaf startDate, deze week en vorige week (maandag t/m zondag)', () => {
+  const s = { startDate: '2026-10-05' };
+  assert.deepEqual(calc.periodRange('all', s, new Date(2026, 10, 1, 20, 0)), { from: '2026-10-05', to: null });
+  assert.deepEqual(calc.periodRange('week', s, new Date(2026, 10, 1, 20, 0)), { from: '2026-10-26', to: '2026-11-01' });
+  assert.deepEqual(calc.periodRange('lastweek', s, new Date(2026, 10, 1, 20, 0)), { from: '2026-10-19', to: '2026-10-25' });
+  assert.deepEqual(calc.periodRange('week', s, new Date(2026, 10, 2, 0, 5)), { from: '2026-11-02', to: '2026-11-08' });
+  assert.deepEqual(calc.periodRange('all', {}, new Date()), { from: null, to: null });
+});
+
+test('activeDays: verschillende dagen met een uitgave of inkomst', () => {
+  assert.equal(calc.activeDays([
+    exp(100, '2026-10-05T09:00'), exp(200, '2026-10-05T18:00'), inc(300, '2026-10-06T10:00'), exp(50, '2026-10-08T12:00')
+  ]), 3);
+  assert.equal(calc.activeDays([]), 0);
+});
+
+test('averageScore: alleen geldige scores, één decimaal', () => {
+  const list = [exp(100, '2026-10-05T09:00', { worth: 4, worthLater: 2 }), exp(100, '2026-10-05T09:00', { worth: 3 }), exp(100, '2026-10-05T09:00', { worth: 4 }), exp(100, '2026-10-05T09:00')];
+  assert.deepEqual(calc.averageScore(list, 'worth'), { average: 3.7, count: 3 });
+  assert.deepEqual(calc.averageScore(list, 'worthLater'), { average: 2, count: 1 });
+  assert.deepEqual(calc.averageScore([], 'worth'), { average: null, count: 0 });
+});
+
+test('lessWorthThanThought: worthLater < worth, grootste daling eerst, dan bedrag', () => {
+  const a = exp(1000, '2026-10-05T09:00', { what: 'A', worth: 4, worthLater: 3 });
+  const b = exp(500, '2026-10-06T09:00', { what: 'B', worth: 5, worthLater: 2 });
+  const c = exp(3000, '2026-10-07T09:00', { what: 'C', worth: 3, worthLater: 2 });
+  const same = exp(900, '2026-10-07T09:00', { what: 'D', worth: 3, worthLater: 3 });
+  const up = exp(900, '2026-10-07T09:00', { what: 'E', worth: 2, worthLater: 4 });
+  const noLater = exp(900, '2026-10-07T09:00', { what: 'F', worth: 5 });
+  assert.deepEqual(calc.lessWorthThanThought([a, b, c, same, up, noLater]).map((e) => e.what), ['B', 'C', 'A']);
+});
+
+test('lowestScored: laatste oordeel (worthLater, anders worth) oplopend, top 5, hoogste bedrag eerst bij gelijk', () => {
+  const list = [
+    exp(100, '2026-10-01T09:00', { what: 'a', worth: 5, worthLater: 1 }),
+    exp(900, '2026-10-02T09:00', { what: 'b', worth: 1 }),
+    exp(200, '2026-10-03T09:00', { what: 'c', worth: 2 }),
+    exp(300, '2026-10-04T09:00', { what: 'd', worth: 4, worthLater: 3 }),
+    exp(400, '2026-10-05T09:00', { what: 'e', worth: 3 }),
+    exp(500, '2026-10-06T09:00', { what: 'f', worth: 5 }),
+    exp(600, '2026-10-07T09:00', { what: 'g' }),
+    inc(700, '2026-10-07T09:00', { worth: 1 })
+  ];
+  assert.deepEqual(calc.lowestScored(list).map((e) => e.what), ['b', 'a', 'c', 'e', 'd']);
+  assert.equal(calc.lowestScored(list, 2).length, 2);
+  assert.equal(calc.finalScore(list[0]), 1);
+  assert.equal(calc.finalScore(list[6]), null);
+});
+
+test('withShares: percentages, afgerond, totaal 0 -> 0', () => {
+  const out = calc.withShares([{ key: 'a', totalCents: 300, count: 1 }, { key: 'b', totalCents: 100, count: 2 }]);
+  assert.deepEqual(out, [{ key: 'a', totalCents: 300, count: 1, percent: 75 }, { key: 'b', totalCents: 100, count: 2, percent: 25 }]);
+  assert.deepEqual(calc.withShares([]), []);
+  assert.equal(calc.withShares([{ key: null, totalCents: 0, count: 0 }])[0].percent, 0);
+});
+
+test('weekSeries: aaneengesloten weken met lege weken op 0', () => {
+  const w = calc.weekSeries([exp(500, '2026-10-06T09:00'), exp(700, '2026-10-21T09:00')], '2026-10-05', '2026-10-25');
+  assert.deepEqual(w.map((x) => [x.weekStart, x.expenseCents]), [['2026-10-05', 500], ['2026-10-12', 0], ['2026-10-19', 700]]);
+});
+
+test('reflection: kerncijfers, saldo begin/eind en startDate-grens', () => {
+  const settings = { startDate: '2026-10-05', startBalanceCents: 10000, hourlyWageCents: 1250 };
+  const entries = [
+    exp(9999, '2026-10-01T09:00'), // voor startDate: telt nergens mee
+    exp(2500, '2026-10-05T09:00', { category: 'Boodschappen', fixed: 'variabel', need: 'nodig', worth: 4, worthLater: 2, mood: 'moe' }),
+    exp(1000, '2026-10-05T19:00', { category: 'Uitgaan', need: 'impuls', worth: 2, mood: 'sociaal' }),
+    exp(4000, '2026-10-13T12:00', { fixed: 'vast', category: 'Abonnementen', need: 'nodig', worth: 5 }),
+    exp(3000, '2026-10-14T12:00', { advanceFor: 'Sam', category: 'Uitgaan', worth: 1, repaidAt: '2026-10-15T10:00:00.000Z' }),
+    inc(3000, '2026-10-15T10:00', { source: 'terugbetaling' }),
+    inc(20000, '2026-10-20T10:00', { source: 'werk' })
+  ];
+  const r = calc.reflection(settings, entries, { from: '2026-10-05', to: null });
+  assert.equal(r.startBalanceCents, 10000);
+  assert.equal(r.openingCents, 10000);
+  assert.equal(r.closingCents, 10000 + 23000 - 10500);
+  assert.equal(r.closingCents, r.balanceCents);
+  assert.equal(r.incomeCents, 23000);
+  assert.equal(r.expenseCents, 10500);
+  assert.equal(r.ownExpenseCents, 7500);
+  assert.equal(r.advancedCents, 3000);
+  assert.equal(r.count, 6);
+  assert.equal(r.activeDays, 5);
+  assert.equal(r.hoursOfWork, 6);
+  assert.deepEqual(r.weeks.map((w) => [w.weekStart, w.ownExpenseCents]), [['2026-10-05', 3500], ['2026-10-12', 4000], ['2026-10-19', 0]]);
+  assert.deepEqual(r.worth, { average: 3.7, count: 3 }); // 4, 2, 5 (voorgeschoten 1 telt niet)
+  assert.deepEqual(r.worthLater, { average: 2, count: 1 });
+  assert.deepEqual(r.lessWorth.map((e) => e.amountCents), [2500]);
+  assert.deepEqual(r.lowest.map((e) => e.amountCents), [2500, 1000, 4000]);
+
+  // Periode later: openingssaldo = alles vanaf startDate voor from.
+  const wk = calc.reflection(settings, entries, { from: '2026-10-12', to: '2026-10-18' });
+  assert.equal(wk.openingCents, 10000 - 3500);
+  assert.equal(wk.closingCents, 10000 - 3500 + 3000 - 7000);
+  assert.equal(wk.count, 3);
+  assert.equal(wk.activeDays, 3);
+  assert.deepEqual(wk.weeks.map((w) => w.weekStart), ['2026-10-12']);
+
+  // from voor startDate wordt afgekapt; weken lopen met now door tot vandaag.
+  const all = calc.reflection(settings, entries, { from: null, to: null, now: new Date(2026, 10, 1, 12, 0) });
+  assert.equal(all.from, '2026-10-05');
+  assert.equal(all.count, 6);
+  assert.equal(all.weeks[all.weeks.length - 1].weekStart, '2026-10-26');
+  assert.equal(all.weeks.length, 4);
+
+  // Zonder uurloon geen uren werk; lege periode geeft nullen.
+  const empty = calc.reflection({ startDate: '2026-10-05' }, [], { from: '2026-10-05', to: '2026-10-11' });
+  assert.equal(empty.hoursOfWork, null);
+  assert.equal(empty.count, 0);
+  assert.deepEqual(empty.byCategory, []);
+  assert.deepEqual(empty.worth, { average: null, count: 0 });
+});
+
+test('reflection: verdelingen tellen alleen eigen uitgaven (zonder advanceFor), met percent', () => {
+  const entries = [
+    exp(3000, '2026-10-05T09:00', { category: 'Uitgaan', fixed: 'variabel', need: 'wil', mood: 'sociaal' }),
+    exp(1000, '2026-10-06T09:00', { category: 'Boodschappen', fixed: 'vast', need: 'nodig', mood: null }),
+    exp(9000, '2026-10-06T19:00', { category: 'Uitgaan', fixed: 'variabel', need: 'impuls', mood: 'sociaal', advanceFor: 'Sam' }),
+    inc(5000, '2026-10-07T09:00')
+  ];
+  const r = calc.reflection({ startDate: '2026-10-05' }, entries, { from: '2026-10-05', to: null });
+  assert.deepEqual(r.byCategory, [
+    { key: 'Uitgaan', totalCents: 3000, count: 1, percent: 75 },
+    { key: 'Boodschappen', totalCents: 1000, count: 1, percent: 25 }
+  ]);
+  assert.deepEqual(r.byFixed.map((g) => [g.key, g.totalCents, g.percent]), [['variabel', 3000, 75], ['vast', 1000, 25]]);
+  assert.deepEqual(r.byNeed.map((g) => g.key), ['wil', 'nodig']);
+  assert.deepEqual(r.byMood.map((g) => [g.key, g.totalCents]), [['sociaal', 3000], [null, 1000]]);
+  assert.equal(r.weeks[0].ownExpenseCents, 4000);
+  assert.equal(r.weeks[0].expenseCents, 13000);
+});

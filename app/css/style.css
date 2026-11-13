@@ -17,6 +17,10 @@
   --toast-bg: #1c1d21;
   --toast-text: #ffffff;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  /* Grafieken (fase 7): één reeks, gevalideerd met de dataviz-validator tegen --surface */
+  --chart-bar: #0f8a6c;
+  --chart-track: #efede8;
+  --chart-grid: #d9d6cf;
 
   --radius: 12px;
   --tap: 44px;
@@ -48,6 +52,9 @@
     --toast-bg: #eceef1;
     --toast-text: #16181c;
     --shadow: none;
+    --chart-bar: #2a9d7c;
+    --chart-track: #2a2e35;
+    --chart-grid: #3a3f47;
   }
 }
 
@@ -523,3 +530,75 @@ body.gated .main { padding-bottom: calc(24px + var(--safe-bottom)); }
 .review-foot { display: flex; align-items: center; justify-content: space-between; min-height: var(--tap); }
 .review-foot .btn-link { min-height: var(--tap); }
 .review-progress { font-size: 13px; color: var(--text-muted); }
+
+/* Reflectie (fase 7) */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.refl-period { margin: 4px 0 6px; }
+.refl-range { margin: 0 0 12px; }
+.refl-balance-values {
+  margin: 2px 0 0;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.refl-balance-values .is-negative { color: var(--expense); }
+.refl-arrow { color: var(--text-muted); font-weight: 400; white-space: pre; }
+.refl-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.refl-stats .stat-value { font-size: 19px; overflow-wrap: anywhere; white-space: normal; }
+.refl-subtitle { margin: 16px 0 8px; font-size: 15px; font-weight: 650; }
+.refl-dist:first-of-type .refl-subtitle { margin-top: 10px; }
+.refl-empty { margin: 6px 0; color: var(--text-muted); font-size: 14px; }
+
+.chart { display: block; width: 100%; height: auto; margin-top: 8px; overflow: visible; }
+.chart-bar { fill: var(--chart-bar); }
+.chart-track { fill: var(--chart-track); }
+.chart-axis { stroke: var(--chart-grid); stroke-width: 1; }
+.chart-value { fill: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-label { fill: var(--text-muted); font-size: 12px; }
+.chart-col:hover .chart-bar { opacity: 0.85; }
+.chart-table { margin-top: 8px; font-size: 14px; }
+.chart-table summary { color: var(--text-muted); cursor: pointer; min-height: 32px; display: list-item; padding-top: 4px; }
+.chart-table table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.chart-table th, .chart-table td { padding: 4px 0; border-bottom: 1px solid var(--border); text-align: left; font-weight: 400; }
+.chart-table th { color: var(--text-muted); font-size: 13px; }
+.chart-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.hbar-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.hbar-text { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 4px; font-size: 15px; }
+.hbar-label { min-width: 0; overflow-wrap: anywhere; }
+.hbar-value { flex: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hbar-amount { font-weight: 600; }
+.hbar-percent { display: inline-block; min-width: 3.2em; text-align: right; color: var(--text-muted); font-size: 14px; }
+.hbar { display: block; width: 100%; height: 10px; }
+
+.refl-list { list-style: none; margin: 0; padding: 0; }
+.refl-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.refl-item:last-child { border-bottom: 0; }
+.refl-item-main, .refl-item-side { display: flex; flex-direction: column; min-width: 0; }
+.refl-item-side { align-items: flex-end; flex: none; }
+.refl-item-what { font-weight: 600; overflow-wrap: anywhere; }
+.refl-item-meta, .refl-item-score { font-size: 13px; color: var(--text-muted); }
+.refl-item-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+.refl-questions { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }

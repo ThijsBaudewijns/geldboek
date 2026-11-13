@@ -482,3 +482,44 @@ body.gated .main { padding-bottom: calc(24px + var(--safe-bottom)); }
 .open-item-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .repaid-box { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .repaid-text { margin: 0; }
+
+/* Terugkijken (U13) */
+.tab { position: relative; }
+.tab-badge {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  margin-left: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tag-hours { background: var(--surface-2); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.review-intro { margin: 4px 0 10px; }
+.review-card { display: flex; flex-direction: column; gap: 10px; }
+.review-card:focus { outline: none; }
+.review-date { margin: 0; font-size: 14px; color: var(--text-muted); }
+.review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.review-what { margin: 0; font-size: 20px; font-weight: 650; overflow-wrap: anywhere; }
+.review-money { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: 0 0 auto; }
+.review-amount { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.review-hours { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.review-facts { margin: 0; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); }
+.review-facts dt { font-size: 13px; color: var(--text-muted); }
+.review-facts dd { margin: 0 0 8px; overflow-wrap: anywhere; }
+.review-facts dd:last-child { margin-bottom: 0; }
+.review-note.is-empty { color: var(--text-muted); font-style: italic; }
+.review-question { margin: 4px 0 0; font-size: 17px; font-weight: 600; }
+.review-scale { margin-top: -4px; }
+.review-foot { display: flex; align-items: center; justify-content: space-between; min-height: var(--tap); }
+.review-foot .btn-link { min-height: var(--tap); }
+.review-progress { font-size: 13px; color: var(--text-muted); }

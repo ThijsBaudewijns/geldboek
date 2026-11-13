@@ -71,6 +71,14 @@
       : [{ text: 'voorgeschoten · open', className: 'tag-advance is-open' }];
   });
 
+  // Label "≈ 3,0 uur werk" (U14): alleen uitgaven, alleen met uurloon.
+  rowLabels.push(function (e, ctx) {
+    if (e.type !== 'expense') return null;
+    var wage = ctx && ctx.settings ? ctx.settings.hourlyWageCents : null;
+    var txt = G.calc.hoursLabel(e.amountCents, wage);
+    return txt ? [{ text: txt, className: 'tag-hours' }] : null;
+  });
+
   function shortDate(iso) {
     var d = G.calc.parseLocalDateTime(String(iso || '').slice(0, 10));
     return d ? d.getDate() + ' ' + MONTHS[d.getMonth()] : '';

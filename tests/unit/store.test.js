@@ -324,3 +324,42 @@ test('updateEntry: bedrag van terugbetaalde uitgave wijzigen past gekoppelde ink
   assert.equal(store.getEntry(inc.id).amountCents, 3500);
   assert.ok(store.getEntry(a.id).repaidAt, 'repaidAt blijft staan bij bewerken');
 });
+
+test('onChange: listener na elke geslaagde save, met kopie van de data; afmelden werkt', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  const calls = [];
+  const off = store.onChange((d) => calls.push(d));
+  const a = store.addEntry(expense());
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].entries.length, 1);
+  calls[0].entries.length = 0; // kopie: mag de store niet raken
+  assert.equal(store.listEntries().length, 1);
+  store.updateEntry(a.id, { worthLater: 2 });
+  store.updateSettings({ hourlyWageCents: 1500 });
+  store.deleteEntry(a.id);
+  assert.equal(calls.length, 4);
+  off();
+  store.addEntry(expense());
+  assert.equal(calls.length, 4);
+});
+
+test('onChange: fout in een listener wordt afgevangen, andere listeners lopen door', () => {
+  const store = S.createStore(fakeStorage(), { now: fixedNow });
+  let n = 0;
+  store.onChange(() => { throw new Error('kapot'); });
+  store.onChange(() => { n++; });
+  assert.doesNotThrow(() => store.addEntry(expense()));
+  assert.equal(n, 1);
+  assert.equal(store.listEntries().length, 1);
+});
+
+test('onChange: geen melding als opslaan mislukt', () => {
+  const st = fakeStorage();
+  const store = S.createStore(st, { now: fixedNow });
+  let n = 0;
+  store.onChange(() => { n++; });
+  st.setItem = () => { throw new Error('vol'); };
+  store.addEntry(expense());
+  assert.equal(n, 0);
+  assert.ok(store.lastError);
+});

@@ -214,11 +214,35 @@
 
     gate: function () { return gate; },
 
+    /** Werkt de badge #review-badge op het tabblad Terugkijken bij (aantal uit calc.reviewQueue). */
+    updateReviewBadge: function () {
+      var b = document.getElementById('review-badge');
+      if (!b || !app.store || !G.calc) return 0;
+      var n = 0;
+      try {
+        n = G.calc.reviewQueue(app.store.listEntries(), new Date()).length;
+      } catch (err) {
+        n = 0;
+      }
+      b.textContent = n > 0 ? (n > 99 ? '99+' : String(n)) : '';
+      b.setAttribute('data-count', String(n));
+      b.hidden = n === 0;
+      var tab = document.querySelector('.tab[data-route="terugkijken"]');
+      if (tab) {
+        if (n > 0) tab.setAttribute('aria-label', 'Terugkijken, ' + n + (n === 1 ? ' uitgave' : ' uitgaven') + ' om terug te kijken');
+        else tab.removeAttribute('aria-label');
+      }
+      return n;
+    },
+
     start: function () {
       if (started) return;
       started = true;
       app.store = G.store.createStore(safeLocalStorage());
-      root.addEventListener('hashchange', function () { app.render(routeFromHash()); });
+      // Badge bij opstarten, na elke opslag en bij elke tabwissel (er kunnen intussen uitgaven 7 dagen oud zijn geworden).
+      app.store.onChange(function () { app.updateReviewBadge(); });
+      app.updateReviewBadge();
+      root.addEventListener('hashchange', function () { app.updateReviewBadge(); app.render(routeFromHash()); });
       var g = app.gateFor();
       if (g) app.showGate(g);
       else app.render(routeFromHash());

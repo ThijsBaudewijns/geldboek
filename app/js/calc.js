@@ -323,6 +323,16 @@
     return (Math.round(hours * 10) / 10).toFixed(1).replace('.', ',');
   }
 
+  /**
+   * Label voor uren werk: "≈ 3,0 uur werk" (U14). Zonder geldig uurloon -> null.
+   * Gebruikt in Overzicht-regels, de opslaan-melding en Terugkijken.
+   */
+  function hoursLabel(amountCents, hourlyWageCents) {
+    var h = hoursOfWork(amountCents, hourlyWageCents);
+    if (h === null) return null;
+    return '≈ ' + formatHours(h) + ' uur werk';
+  }
+
   // ---------- terugkijken ----------
 
   /**
@@ -460,6 +470,7 @@
     weekStartOf: weekStartOf,
     hoursOfWork: hoursOfWork,
     formatHours: formatHours,
+    hoursLabel: hoursLabel,
     reviewQueue: reviewQueue,
     quickPicks: quickPicks,
     isOwnExpense: isOwnExpense,

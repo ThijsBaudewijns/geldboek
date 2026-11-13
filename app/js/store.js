@@ -192,17 +192,43 @@
       return clone(data);
     };
 
+    var listeners = [];
+
+    /**
+     * onChange(fn): fn(data) wordt aangeroepen na elke geslaagde save() (data = kopie).
+     * Geeft een functie terug die de listener weer afmeldt. Fouten in een listener worden afgevangen.
+     */
+    store.onChange = function (fn) {
+      if (typeof fn !== 'function') return function () {};
+      listeners.push(fn);
+      return function () {
+        var i = listeners.indexOf(fn);
+        if (i >= 0) listeners.splice(i, 1);
+      };
+    };
+
+    function notify() {
+      var list = listeners.slice();
+      for (var i = 0; i < list.length; i++) {
+        try {
+          list[i](clone(data));
+        } catch (err) { /* een kapotte listener mag opslaan niet breken */ }
+      }
+    }
+
     /** Schrijft de huidige data weg. true bij succes, false bij fout (zie store.lastError). */
     store.save = function () {
-      if (!storage) return true;
-      try {
-        storage.setItem(STORAGE_KEY, JSON.stringify(data));
-        store.lastError = null;
-        return true;
-      } catch (err) {
-        store.lastError = err;
-        return false;
+      if (storage) {
+        try {
+          storage.setItem(STORAGE_KEY, JSON.stringify(data));
+          store.lastError = null;
+        } catch (err) {
+          store.lastError = err;
+          return false;
+        }
       }
+      notify();
+      return true;
     };
 
     /** Volledige data (kopie), bijv. voor export. */

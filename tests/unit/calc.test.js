@@ -275,3 +275,10 @@ test('advanceNames: unieke namen, meest recente eerst', () => {
   assert.deepEqual(calc.advanceNames(list), ['Anna', 'sam']);
   assert.deepEqual(calc.advanceNames([]), []);
 });
+
+test('hoursLabel: "≈ 3,0 uur werk", zonder uurloon null', () => {
+  assert.equal(calc.hoursLabel(4500, 1500), '≈ 3,0 uur werk');
+  assert.equal(calc.hoursLabel(1250, 1500), '≈ 0,8 uur werk');
+  assert.equal(calc.hoursLabel(4500, null), null);
+  assert.equal(calc.hoursLabel(4500, 0), null);
+});

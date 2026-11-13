@@ -506,7 +506,9 @@
     if (app.store.lastError) {
       app.toast('Let op: opslaan op dit toestel mislukte.', 5000);
     } else {
-      app.toast('Opgeslagen: ' + G.calc.formatEuro(saved.amountCents) + ' — ' + saved.what);
+      // Uitgave met uurloon: "Opgeslagen: € 45,00 ≈ 3,0 uur werk — Lunch" (U14); inkomsten zonder uren-werk.
+      var hours = saved.type === 'expense' ? G.calc.hoursLabel(saved.amountCents, app.store.getSettings().hourlyWageCents) : null;
+      app.toast('Opgeslagen: ' + G.calc.formatEuro(saved.amountCents) + (hours ? ' ' + hours : '') + ' — ' + saved.what, hours ? 4000 : 3000);
     }
   }
 

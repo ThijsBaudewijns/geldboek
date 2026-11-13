@@ -12,7 +12,7 @@ test.describe('Onboarding, uitgave en inkomst', () => {
     await expect(page.locator('#view-invoer')).toBeVisible();
 
     await addExpense(page, { amount: '20', what: 'Boodschappen', note: 'Eten voor de week' });
-    await expect(page.locator('#toast')).toHaveText('Opgeslagen: € 20,00 — Boodschappen');
+    await expect(page.locator('#toast')).toHaveText('Opgeslagen: € 20,00 ≈ 1,3 uur werk — Boodschappen');
 
     await setEntryType(page, 'income');
     await expect(page.locator('#income-form')).toBeVisible();

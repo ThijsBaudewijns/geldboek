@@ -58,7 +58,7 @@ test.describe('Reflectie', () => {
 
     // Verdelingen = eigen uitgaven (zonder voorgeschoten), zelfde volgorde en bedragen als calc.
     const r = calc.reflection(fixture.settings, fixture.entries, { from: '2026-10-05', to: null, now: NOW });
-    for (const [id, list] of [['refl-by-category', r.byCategory], ['refl-by-fixed', r.byFixed], ['refl-by-need', r.byNeed], ['refl-by-mood', r.byMood]]) {
+    for (const [id, list] of [['refl-by-category', r.byCategory], ['refl-by-fixed', r.byFixed], ['refl-by-need', r.byNeed]]) {
       const rows = page.locator(`#${id} .hbar-row`);
       await expect(rows).toHaveCount(list.length);
       expect(await rows.evaluateAll((els) => els.map((e) => [e.getAttribute('data-key'), +e.getAttribute('data-cents')])))
@@ -84,8 +84,8 @@ test.describe('Reflectie', () => {
     await expect(lowest).toHaveText(['Hoodie', 'Bezorgmaaltijd', 'Snoep en chips', 'Game', 'Lunch']);
     await expect(page.locator('#refl-lowest .refl-item').first().locator('.refl-item-meta')).toHaveText('7 okt · ≈ 1,8 uur werk');
 
-    // Stemming en reflectievragen.
-    await expect(page.locator('#refl-by-mood .hbar-row[data-key="sociaal"] .hbar-label')).toHaveText('Sociaal');
+    // Geen stemming meer; wel reflectievragen.
+    await expect(page.locator('#refl-mood, #refl-by-mood')).toHaveCount(0);
     await expect(page.locator('#refl-questions li')).toHaveText([
       'Welke uitgave zou je niet opnieuw doen?',
       'Waar verraste het totaal je?',

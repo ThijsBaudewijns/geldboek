@@ -250,7 +250,7 @@
   }
 
   /**
-   * Som van de uitgaven per waarde van `key` (bijv. 'category', 'need', 'mood', 'fixed').
+   * Som van de uitgaven per waarde van `key` (bijv. 'category', 'need', 'fixed').
    * opts.type: 'expense' (standaard) of 'income'; opts.ownOnly: alleen eigen uitgaven.
    * Resultaat: [{ key, totalCents, count }], grootste totaal eerst; ontbrekende waarde = key null.
    */
@@ -590,13 +590,13 @@
    * Entries vóór settings.startDate tellen nooit mee (net als het saldo, U11); from wordt daarop afgekapt.
    * range.now (optioneel, Date/string): bij to null lopen de weken in de grafiek door tot die datum.
    *
-   * Keuze: verdelingen (categorie, vast/variabel, nodig/wil/impuls, stemming), weken-grafiekwaarde,
+   * Keuze: verdelingen (categorie, vast/variabel, nodig/wil/impuls), weken-grafiekwaarde,
    * waard-scores en uren werk gaan over EIGEN uitgaven (zonder advanceFor, U12); voorgeschoten bedragen
    * zijn niet voor jezelf. count en activeDays tellen alle registraties (uitgaven en inkomsten).
    *
    * -> { from, to, startBalanceCents, openingCents, closingCents, balanceCents, incomeCents, expenseCents,
    *      ownExpenseCents, advancedCents, repaymentCents, count, activeDays, hoursOfWork (Number|null),
-   *      weeks, byCategory, byFixed, byNeed, byMood (met percent), worth, worthLater ({average,count}),
+   *      weeks, byCategory, byFixed, byNeed (met percent), worth, worthLater ({average,count}),
    *      lessWorth, lowest }
    */
   function reflection(settings, entries, range) {
@@ -658,7 +658,6 @@
       byCategory: withShares(groupBy(own, 'category')),
       byFixed: withShares(groupBy(own, 'fixed')),
       byNeed: withShares(groupBy(own, 'need')),
-      byMood: withShares(groupBy(own, 'mood')),
       worth: averageScore(own, 'worth'),
       worthLater: averageScore(own, 'worthLater'),
       lessWorth: lessWorthThanThought(own),

@@ -164,7 +164,6 @@
     var category = chipGroup({ name: 'category', values: (opts.categories || storeApi.DEFAULT_CATEGORIES).slice(), allowNone: true, ariaLabel: 'Categorie' });
     var need = chipGroup({ name: 'need', values: storeApi.NEEDS.slice(), labels: ['Nodig', 'Wil', 'Impuls'], allowNone: true, ariaLabel: 'Nodig, wil of impuls' });
     var worth = chipGroup({ name: 'worth', values: [1, 2, 3, 4, 5], allowNone: true, className: 'chip chip-score', ariaLabel: 'Was het het geld waard (1 tot 5)' });
-    var mood = chipGroup({ name: 'mood', values: storeApi.MOODS.slice(), allowNone: true, ariaLabel: 'Stemming' });
     // Voorgeschoten voor (U12): naam met suggesties van eerder gebruikte namen (opts.getAdvanceNames()).
     var advanceList = h('datalist', { id: P + 'advance-list' });
     var advance = h('input', {
@@ -186,7 +185,7 @@
 
     var fAmount = field(P + 'amount', 'Bedrag', amountWrap, null, true);
     var fWhat = field(P + 'what', 'Wat', what, null, true);
-    var fNote = field(P + 'note', 'Waarom (argumentatie)', note, null, true);
+    var fNote = field(P + 'note', 'Waarom (argumentatie)', note);
     var fDatetime = field(P + 'datetime', 'Datum en tijd', datetime);
     var fFixed = groupField('fixed', 'Vast of variabel', fixed, P === 'f-' ? '' : P, true);
 
@@ -197,7 +196,6 @@
         groupField('category', 'Categorie', category, P === 'f-' ? '' : P),
         groupField('need', 'Nodig, wil of impuls?', need, P === 'f-' ? '' : P),
         groupField('worth', 'Was het het geld waard? (1-5)', worth, P === 'f-' ? '' : P),
-        groupField('mood', 'Stemming', mood, P === 'f-' ? '' : P),
         fAdvance
       ])
     ]);
@@ -224,7 +222,6 @@
       if (amount.value.trim() === '') errors.push([fAmount, 'Vul een bedrag in, bijvoorbeeld 12,50.', amount]);
       else if (cents === null) errors.push([fAmount, 'Dit is geen geldig bedrag. Gebruik bijvoorbeeld 12,50.', amount]);
       if (what.value.trim() === '') errors.push([fWhat, 'Vul in waar het geld aan op ging.', what]);
-      if (note.value.trim().length < 3) errors.push([fNote, 'Schrijf kort waarom je dit uitgaf (minstens 3 tekens).', note]);
       if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(datetime.value)) errors.push([fDatetime, 'Kies een datum en tijd.', datetime]);
       [fAmount, fWhat, fNote, fDatetime].forEach(function (f) { setError(f, null); });
       errors.forEach(function (e) { setError(e[0], e[1]); });
@@ -242,7 +239,6 @@
         category: category.get(),
         need: need.get(),
         worth: worth.get(),
-        mood: mood.get(),
         advanceFor: advance.value.trim() || null
       };
     }
@@ -273,7 +269,6 @@
         category.set(null);
         need.set(null);
         worth.set(null);
-        mood.set(null);
         advance.value = '';
         refreshAdvanceNames();
         [fAmount, fWhat, fNote, fDatetime].forEach(function (f) { setError(f, null); });
@@ -289,7 +284,6 @@
         if ('category' in e) category.set(e.category);
         if ('need' in e) need.set(e.need);
         if ('worth' in e) worth.set(e.worth);
-        if ('mood' in e) mood.set(e.mood);
         if ('advanceFor' in e) advance.value = e.advanceFor || '';
         [fAmount, fWhat, fNote, fDatetime].forEach(function (f) { setError(f, null); });
       },

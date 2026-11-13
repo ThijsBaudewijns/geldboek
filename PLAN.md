@@ -38,10 +38,10 @@ Eerst het datamodel en de rekenlogica met tests (fase 1): alles wat volgt leest 
 | U27 | **De URL verandert nooit meer na de eerste installatie.** Data hoort bij het adres (de origin); een ander adres betekent een lege app. De README waarschuwt Thijs hiervoor, en ook dat het verwijderen van het beginscherm-icoon de data wist (dus eerst een back-up maken). |
 | U4 | **Taal Nederlands, valuta euro, `nl-NL`-opmaak.** Bedragen intern als gehele centen (`amountCents`, integer), nooit als float. Invoer accepteert komma en punt (`12,50`, `12.5`). |
 | U5 | **Mobile-first, invoer in zo weinig tikken als kan.** Bij openen van de app staat het invoerscherm open, met de focus op het bedrag (`inputmode="decimal"`). Datum/tijd staat al op nu. Tikvelden voor opties zijn chips (knoppen), geen dropdowns. Knoppen minimaal 44px hoog. Licht en donker thema via `prefers-color-scheme`. |
-| U6 | **Verplicht bij een uitgave: bedrag, wat, argumentatie (min. 3 tekens), vast/variabel (standaard `variabel`).** Datum/tijd is vooringevuld. Optioneel: categorie, nodig/wil/impuls, waard-score 1-5, stemming, voorgeschoten-voor. De argumentatie is de kern van het huiswerk, daarom verplicht. |
+| U6 | **Verplicht bij een uitgave: bedrag, wat, vast/variabel (standaard `variabel`).** Datum/tijd is vooringevuld. Optioneel: argumentatie (staat wel direct onder "wat"), categorie, nodig/wil/impuls, waard-score 1-5, voorgeschoten-voor. Argumentatie was eerst verplicht, maar is optioneel gemaakt: het merendeel van de uitgaven (boodschappen, vaste kosten) spreekt voor zich. Stemming is helemaal geschrapt (voegde niets toe). |
 | U7 | **Snel toevoegen:** boven het formulier staan de 6 meest gebruikte "wat"-waarden van de laatste 30 dagen als chips. Een tik vult wat, bedrag (laatst gebruikte), vast/variabel en categorie in; hij past aan wat nodig is en vult de argumentatie in. |
 | U8 | **Standaardcategorieën:** Boodschappen, Eten & drinken buiten de deur, Vervoer, Uitgaan, Kleding, Abonnementen, Wonen, Cadeaus, Overig. Aan te passen in Instellingen. |
-| U9 | **Nodig/wil/impuls** als drie chips. **Stemming** als chips: verveeld, gestrest, sociaal, blij, moe, neutraal. **Waard-score** 1-5 als vijf knoppen. |
+| U9 | **Nodig/wil/impuls** als drie chips. (Stemming is geschrapt.) **Waard-score** 1-5 als vijf knoppen. |
 | U10 | **Inkomsten** hebben een bron: `werk`, `terugbetaling`, `belasting`, `overig`. Bij `werk` optioneel een aantal uren; met een uurloon uit Instellingen vult uren × uurloon het bedrag voor (overschrijfbaar). |
 | U11 | **Saldo = startsaldo + som inkomsten − som uitgaven**, over alle regels vanaf de startdatum. Startsaldo, startdatum (standaard de dag van het eerste gebruik) en uurloon (optioneel) komen uit het eerste-keer-scherm. |
 | U12 | **Voorgeschoten:** een uitgave kan `advanceFor` (naam) hebben. Op "terugbetaald" tikken maakt een inkomst aan met bron `terugbetaling`, gekoppeld via `linkedExpenseId`, en zet `repaidAt` op de uitgave. Terugdraaien verwijdert die inkomst weer. In de reflectie telt "eigen uitgaven" = uitgaven zonder `advanceFor`. |
@@ -164,7 +164,7 @@ Eerst het datamodel en de rekenlogica met tests (fase 1): alles wat volgt leest 
 **Hangt af van:** fase 1 (`store.js`, `calc.js`)
 
 - `app/index.html` (lang `nl`, viewport-meta, `theme-color`), `app/css/style.css`, `app/js/app.js` (hash-routing volgens U15; de tabbalk met vier tabbladen; tabbladen die nog niet bestaan tonen "binnenkort"), `app/js/ui-invoer.js`.
-- Invoerformulier volgens U5, U6, U7, U9: bedrag (focus, `inputmode="decimal"`), wat, argumentatie, vast/variabel-schakelaar, datum/tijd (`datetime-local`, vooringevuld met nu), categorie-chips, nodig/wil/impuls-chips, waard 1-5, stemming-chips. De optionele velden staan onder een inklapbaar blok "Meer" dat standaard open staat (de vriend moet ze zien), maar het formulier blijft zonder scrollen bruikbaar op 390×844 voor de verplichte velden + Opslaan.
+- Invoerformulier volgens U5, U6, U7, U9: bedrag (focus, `inputmode="decimal"`), wat, argumentatie, vast/variabel-schakelaar, datum/tijd (`datetime-local`, vooringevuld met nu), categorie-chips, nodig/wil/impuls-chips, waard 1-5. De optionele velden staan onder een inklapbaar blok "Meer" dat standaard open staat (de vriend moet ze zien), maar het formulier blijft zonder scrollen bruikbaar op 390×844 voor de verplichte velden + Opslaan.
 - Validatie in het Nederlands, bij het veld. Na Opslaan: korte melding "Opgeslagen: € 12,50 — Lunch", formulier leeg, datum/tijd weer op nu, focus terug op bedrag.
 - Snelle-chips (U7) boven het formulier via `calc.quickPicks`.
 - iOS-basis in `index.html` en `style.css` volgens U25: meta-tags, safe-area-padding op tabbalk en kop, invoervelden ≥ 16px.
@@ -258,7 +258,7 @@ Eerst het datamodel en de rekenlogica met tests (fase 1): alles wat volgt leest 
   2. Uitgaven per week (staafdiagram).
   3. Verdeling per categorie, vast tegenover variabel, nodig/wil/impuls (horizontale staven met bedrag en percentage).
   4. Waard-scores: gemiddelde eerste score en gemiddelde terugkijkscore; een lijst "Minder waard dan gedacht" (`worthLater` < `worth`) en "Laagst gescoord" (top 5).
-  5. Stemming: bedrag per stemming.
+  5. (Stemming: geschrapt.)
   6. Reflectievragen als vaste tekst om samen te bespreken: "Welke uitgave zou je niet opnieuw doen?", "Waar verraste het totaal je?", "Wat wil je volgende maand anders doen?", "Heeft het bijhouden je gedrag veranderd?".
 - Pure berekeningen die er nog niet zijn gaan naar `calc.js`, met unit-tests.
 - `tests/e2e/reflectie.spec.js`: seed `localStorage` met een vaste dataset (fixture `tests/e2e/fixtures/maand.json`, ~40 entries over 4 weken, alle velden gevarieerd) -> controleer de kerncijfers tegen vooraf berekende waarden en dat er SVG-staven zijn.

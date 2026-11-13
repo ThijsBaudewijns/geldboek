@@ -6,7 +6,7 @@
  * Kerncijfers (#refl-key): #refl-start en #refl-end (saldo begin -> eind, data-cents), #refl-income,
  *   #refl-own-expense, #refl-count, #refl-days, #refl-hours (alleen met uurloon). Bedragen hebben data-cents.
  * Uitgaven per week: svg#refl-weeks-chart met staven .chart-bar[data-week][data-cents] + tabel in <details>.
- * Verdelingen: #refl-by-category, #refl-by-fixed, #refl-by-need, #refl-by-mood met rijen .hbar-row[data-key]
+ * Verdelingen: #refl-by-category, #refl-by-fixed, #refl-by-need met rijen .hbar-row[data-key]
  *   (.hbar-label, .hbar-value, svg.hbar met rect.chart-bar).
  * Waard-scores: #refl-worth-avg, #refl-worth-later-avg, lijsten #refl-less-worth en #refl-lowest (li[data-entry-id]).
  * Reflectievragen: #refl-questions.
@@ -40,8 +40,7 @@
   var LABELS = {
     category: { 'null': 'Geen categorie' },
     fixed: { vast: 'Vast', variabel: 'Variabel', 'null': 'Niet ingevuld' },
-    need: { nodig: 'Nodig', wil: 'Wil', impuls: 'Impuls', 'null': 'Niet ingevuld' },
-    mood: { verveeld: 'Verveeld', gestrest: 'Gestrest', sociaal: 'Sociaal', blij: 'Blij', moe: 'Moe', neutraal: 'Neutraal', 'null': 'Geen stemming' }
+    need: { nodig: 'Nodig', wil: 'Wil', impuls: 'Impuls', 'null': 'Niet ingevuld' }
   };
 
   var period = 'all';
@@ -333,11 +332,6 @@
       distribution('refl-by-need', 'Nodig, wil of impuls', 'need', r.byNeed)
     ]));
     viewEl.appendChild(worthCard(r, settings));
-    viewEl.appendChild(h('section', { className: 'card refl-card', id: 'refl-mood', 'aria-labelledby': 'refl-mood-title' }, [
-      h('h2', { className: 'card-title', id: 'refl-mood-title', text: 'Stemming' }),
-      h('p', { className: 'hint', text: 'Hoeveel je uitgaf per stemming.' }),
-      distribution('refl-by-mood', 'Bedrag per stemming', 'mood', r.byMood)
-    ]));
     viewEl.appendChild(questionsCard());
   }
 

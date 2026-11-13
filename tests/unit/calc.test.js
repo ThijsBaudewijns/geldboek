@@ -412,7 +412,7 @@ test('reflection: verdelingen tellen alleen eigen uitgaven (zonder advanceFor), 
   ]);
   assert.deepEqual(r.byFixed.map((g) => [g.key, g.totalCents, g.percent]), [['variabel', 3000, 75], ['vast', 1000, 25]]);
   assert.deepEqual(r.byNeed.map((g) => g.key), ['wil', 'nodig']);
-  assert.deepEqual(r.byMood.map((g) => [g.key, g.totalCents]), [['sociaal', 3000], [null, 1000]]);
+  assert.equal(r.byMood, undefined);
   assert.equal(r.weeks[0].ownExpenseCents, 4000);
   assert.equal(r.weeks[0].expenseCents, 13000);
 });

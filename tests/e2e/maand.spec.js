@@ -11,11 +11,11 @@ const D = '2026-11-02';
 
 // Vijf eigen uitgaven met verschillende velden.
 const EXPENSES = [
-  { amount: '12,50', what: 'Lunch', note: 'Geen brood meegenomen', time: '12:30', category: 'Eten & drinken buiten de deur', need: 'wil', worth: '3', mood: 'moe' },
+  { amount: '12,50', what: 'Lunch', note: 'Geen brood meegenomen', time: '12:30', category: 'Eten & drinken buiten de deur', need: 'wil', worth: '3' },
   { amount: '42,10', what: 'Boodschappen', note: 'Voor de hele week', time: '17:40', category: 'Boodschappen', need: 'nodig', worth: '5' },
   { amount: '9,99', what: 'Spotify', note: 'Elke maand', time: '08:00', category: 'Abonnementen', fixed: 'vast', need: 'wil', worth: '4' },
-  { amount: '3,40', what: 'Koffie', note: 'Lange dag', time: '10:05', category: 'Eten & drinken buiten de deur', need: 'impuls', mood: 'gestrest' },
-  { amount: '25,00', what: 'Trui', note: 'In de uitverkoop', time: '15:20', category: 'Kleding', need: 'impuls', worth: '2', mood: 'verveeld' }
+  { amount: '3,40', what: 'Koffie', note: 'Lange dag', time: '10:05', category: 'Eten & drinken buiten de deur', need: 'impuls' },
+  { amount: '25,00', what: 'Trui', note: 'In de uitverkoop', time: '15:20', category: 'Kleding', need: 'impuls', worth: '2' }
 ];
 const OWN_EXPENSE = 1250 + 4210 + 999 + 340 + 2500; // 9299
 const START = 10000; // € 100,00 startsaldo
@@ -47,7 +47,6 @@ test('maand-flow: onboarding tot en met export (390x844)', async ({ page }, test
     await form.locator(`[data-group="category"] [data-value="${x.category}"]`).click();
     if (x.need) await form.locator(`[data-group="need"] [data-value="${x.need}"]`).click();
     if (x.worth) await form.locator(`[data-group="worth"] [data-value="${x.worth}"]`).click();
-    if (x.mood) await form.locator(`[data-group="mood"] [data-value="${x.mood}"]`).click();
     await addExpense(page, x);
     await expect(page.locator('#f-amount')).toHaveValue('');
   }
@@ -78,7 +77,7 @@ test('maand-flow: onboarding tot en met export (390x844)', async ({ page }, test
   expect(adv.repaidAt).toBeTruthy();
   expect(data.entries.find((e) => e.source === 'terugbetaling')).toMatchObject({ amountCents: ADVANCE, linkedExpenseId: adv.id });
   const trui = data.entries.find((e) => e.what === 'Trui');
-  expect(trui).toMatchObject({ amountCents: 2500, category: 'Kleding', need: 'impuls', worth: 2, mood: 'verveeld', fixed: 'variabel' });
+  expect(trui).toMatchObject({ amountCents: 2500, category: 'Kleding', need: 'impuls', worth: 2, fixed: 'variabel' });
   expect(data.entries.find((e) => e.what === 'Spotify')).toMatchObject({ fixed: 'vast', category: 'Abonnementen' });
 
   // Vandaag nog niets om terug te kijken.

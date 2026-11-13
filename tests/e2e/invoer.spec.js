@@ -39,28 +39,22 @@ test.describe('Invoer uitgave', () => {
     await page.locator('[data-group="category"] [data-value="Vervoer"]').click();
     await page.locator('[data-group="need"] [data-value="nodig"]').click();
     await page.locator('[data-group="worth"] [data-value="4"]').click();
-    await page.locator('[data-group="mood"] [data-value="moe"]').click();
     await page.locator('#f-datetime').fill('2026-11-10T08:15');
     await addExpense(page, { amount: '3.4', what: 'Bus', note: 'Naar werk', fixed: 'vast' });
     const e = (await readData(page)).entries[0];
     expect(e).toMatchObject({
-      amountCents: 340, fixed: 'vast', category: 'Vervoer', need: 'nodig', worth: 4, mood: 'moe',
+      amountCents: 340, fixed: 'vast', category: 'Vervoer', need: 'nodig', worth: 4,
       datetime: '2026-11-10T08:15'
     });
   });
 
-  test('opslaan zonder argumentatie wordt geweigerd', async ({ page }) => {
+  test('opslaan zonder argumentatie mag (argumentatie is optioneel)', async ({ page }) => {
     await openApp(page);
-    await addExpense(page, { amount: '12,50', what: 'Lunch', note: '' });
-    await expect(page.locator('#f-note-error')).toBeVisible();
-    await expect(page.locator('#f-note-error')).toContainText('minstens 3 tekens');
-    expect((await readData(page)).entries).toHaveLength(0);
-
-    // Te kort (2 tekens) ook geweigerd.
-    await page.locator('#f-note').fill('ok');
-    await page.locator('#f-submit').click();
-    await expect(page.locator('#f-note-error')).toBeVisible();
-    expect((await readData(page)).entries).toHaveLength(0);
+    await addExpense(page, { amount: '12,50', what: 'Boodschappen', note: '' });
+    await expect(page.locator('#f-note-error')).toBeHidden();
+    const entries = (await readData(page)).entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].note).toBe('');
   });
 
   test('ongeldig of leeg bedrag geeft een Nederlandse foutmelding', async ({ page }) => {
@@ -139,14 +133,16 @@ test.describe('Verplicht en optioneel', () => {
     await openApp(page);
     const all = await labels(page, '#expense-form');
     const byField = Object.fromEntries(all.map((l) => [l.field, l.text]));
-    for (const f of ['f-amount', 'f-what', 'f-note', 'fixed']) expect(byField[f], f).toMatch(/\*$/);
-    for (const f of ['f-datetime', 'category', 'need', 'worth', 'mood', 'f-advance-for']) expect(byField[f], f).not.toContain('*');
+    for (const f of ['f-amount', 'f-what', 'fixed']) expect(byField[f], f).toMatch(/\*$/);
+    for (const f of ['f-note', 'f-datetime', 'category', 'need', 'worth', 'f-advance-for']) expect(byField[f], f).not.toContain('*');
+    await expect(page.locator('#expense-form [data-group="mood"]')).toHaveCount(0);
     // Sterretje is visueel (aria-hidden); velden zelf zijn required voor hulptechnologie.
     await expect(page.locator('#expense-form .field[data-field="f-amount"] .req')).toHaveAttribute('aria-hidden', 'true');
-    for (const id of ['#f-amount', '#f-what', '#f-note']) {
+    for (const id of ['#f-amount', '#f-what']) {
       await expect(page.locator(id)).toHaveAttribute('aria-required', 'true');
       await expect(page.locator(id)).toHaveAttribute('required', '');
     }
+    await expect(page.locator('#f-note')).not.toHaveAttribute('required', '');
     await expect(page.locator('#f-datetime')).not.toHaveAttribute('required', '');
     await expect(page.locator('#expense-form')).toHaveAttribute('novalidate', '');
     await expect(page.locator('#expense-form details.more > summary')).toHaveText('Optioneel');

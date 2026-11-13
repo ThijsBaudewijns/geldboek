@@ -85,7 +85,6 @@
     ['category', function (e) { return e.category; }],
     ['need', function (e) { return e.need; }],
     ['worth', function (e) { return e.worth; }],
-    ['mood', function (e) { return e.mood; }],
     ['worthLater', function (e) { return e.worthLater; }],
     ['worthLaterAt', function (e) { return e.worthLaterAt; }],
     ['worthLaterSkipped', function (e) { return e.type === 'expense' ? (e.worthLaterSkipped === true ? 'ja' : 'nee') : ''; }],

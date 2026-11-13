@@ -45,7 +45,7 @@ test('toCSV: BOM, kopregel, ; als scheidingsteken, één regel per entry, CRLF',
   const lines = csv.slice(1).split('\r\n').filter((l) => l !== '');
   assert.equal(lines.length, 41);
   assert.equal(lines[0], B.COLUMNS.join(';'));
-  ['id', 'type', 'amountCents', 'datetime', 'what', 'note', 'createdAt', 'fixed', 'category', 'need', 'worth', 'mood',
+  ['id', 'type', 'amountCents', 'datetime', 'what', 'note', 'createdAt', 'fixed', 'category', 'need', 'worth',
     'worthLater', 'worthLaterAt', 'worthLaterSkipped', 'advanceFor', 'repaidAt', 'source', 'hours', 'linkedExpenseId']
     .forEach((f) => assert.ok(B.COLUMNS.includes(f), 'kolom ' + f));
   const first = lines[1].split(';');
